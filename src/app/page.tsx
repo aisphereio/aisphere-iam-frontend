@@ -1,0 +1,29 @@
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppShell } from '@/components/layout/app-shell';
+import { IamPage } from '@/components/pages/iam-page';
+import type { Tab } from '@/lib/api/types';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+function PageRouter({ tab }: { tab: Tab }) {
+  return <IamPage tab={tab} />;
+}
+
+export default function IamConsole() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppShell>
+        {(tab) => <PageRouter tab={tab} />}
+      </AppShell>
+    </QueryClientProvider>
+  );
+}
