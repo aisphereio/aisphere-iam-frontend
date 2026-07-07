@@ -73,7 +73,8 @@ function emitAuth(reason: 'expired' | 'logout' | 'manual') {
 }
 
 export function getToken(): string {
-  if (typeof window === 'undefined' || isGatewayOIDCMode()) return '';
+  if (typeof window === 'undefined') return '';
+  if (isGatewayOIDCMode()) return '__gateway_oidc_session__';
   return localStorage.getItem(TOKEN_KEY) || '';
 }
 
@@ -94,7 +95,7 @@ export function setTokens(
 ) {
   if (typeof window === 'undefined' || isGatewayOIDCMode()) return;
   localStorage.setItem(TOKEN_KEY, accessToken);
-  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+  if (refreshToken) localStorage.setItem(REFRESH_KEY);
   if (opts?.idToken) localStorage.setItem(ID_TOKEN_KEY, opts.idToken);
   if (opts?.expiresIn && opts.expiresIn > 0) {
     const expiresAt = Date.now() + opts.expiresIn * 1000;
