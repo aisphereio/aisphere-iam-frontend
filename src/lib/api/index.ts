@@ -1,12 +1,4 @@
-import {
-  request,
-  toQuery,
-  getToken,
-  IAM_URL,
-  isGatewayOIDCMode,
-  buildGatewayLoginUrl,
-  buildGatewayLogoutUrl,
-} from './client';
+import { request, toQuery } from './client';
 import type {
   IamPrincipal,
   IamUser,
@@ -29,132 +21,22 @@ import type {
 
 // ─── IAM Service API (aisphere-iam /v1/iam/*) ──────────────────────────
 
-function iamRequest<T>(path: string, init: RequestInit = {}, publicEndpoint = false): Promise<T> {
-  const gatewayMode = isGatewayOIDCMode();
-  // In gateway_oidc mode, requests go through Next.js rewrites (same-origin).
-  const fullUrl = gatewayMode ? path : IAM_URL + path;
-  const headers = new Headers(init.headers || []);
-  // Public endpoints (login-url, exchange, etc.) must NOT send Authorization
-  // header, otherwise the IAM backend will try to validate a stale token
-  // before processing the request, causing 401 and consuming the OAuth code.
-  if (!gatewayMode && !publicEndpoint) {
-    const token = getToken();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-  }
-  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-  return fetch(fullUrl, {
-    ...init,
-    headers,
-  }).then(async (res) => {
-    if (!res.ok) {
-      let msg = `${res.status} ${res.statusText}`;
-      try {
-        const j = await res.json();
-        msg = j.message || j.error || msg;
-      } catch { /* ignore */ }
-      throw new Error(msg);
-    }
-    const text = await res.text();
-    if (!text) return {} as T;
-    return JSON.parse(text) as T;
-  });
+function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return request<T>(path, init);
 }
 
-/** IAM Auth Service */
+/** IAM Auth Service
+ *
+ * Browser authentication is handled exclusively by Envoy Gateway OIDC.
+ * The frontend does not build Casdoor login URLs, exchange authorization codes,
+ * refresh access tokens, or persist token sets.
+ */
 export const iamAuthApi = {
-  /** Build Casdoor OAuth login URL. In gateway_oidc mode, this returns a Gateway-protected URL. */
-  buildLoginUrl: (redirectUri: string, state = '') => {
-    if (isGatewayOIDCMode()) {
-      return Promise.resolve(buildGatewayLoginUrl(state));
-    }
-    return iamRequest<{ loginUrl?: string; login_url?: string }>(
-      `/v1/iam/login-url?${toQuery({ redirect_uri: redirectUri, state })}`,
-      {},
-      true, // public endpoint, no auth header
-    ).then((r) => r.loginUrl || r.login_url || '');
-  },
-
-  /** Exchange authorization code for tokens. Disabled when Envoy Gateway owns the OIDC callback. */
-  exchangeCode: async (code: string, redirectUri: string, state = '') => {
-    if (isGatewayOIDCMode()) {
-      throw new Error('OAuth code exchange is handled by Envoy Gateway in gateway_oidc mode');
-    }
-    const raw = await iamRequest<{
-      tokens?: {
-        accessToken?: string;
-        refreshToken?: string;
-        idToken?: string;
-        tokenType?: string;
-        expiresIn?: number;
-        scope?: string;
-        access_token?: string;
-        refresh_token?: string;
-        id_token?: string;
-        token_type?: string;
-        expires_in?: number;
-      };
-      accessToken?: string;
-      refreshToken?: string;
-      idToken?: string;
-      tokenType?: string;
-      expiresIn?: number;
-      access_token?: string;
-      refresh_token?: string;
-      id_token?: string;
-      token_type?: string;
-      expires_in?: number;
-    }>('/v1/iam/auth/exchange', {
-      method: 'POST',
-      body: JSON.stringify({ code, redirect_uri: redirectUri, state }),
-    }, true); // public endpoint, no auth header
-    // Handle both nested { tokens: {...} } and flat response structures
-    const t = raw.tokens || raw;
-    return {
-      accessToken: t.accessToken || t.access_token || '',
-      refreshToken: t.refreshToken || t.refresh_token || '',
-      idToken: t.idToken || t.id_token || '',
-      tokenType: t.tokenType || t.token_type || '',
-      expiresIn: t.expiresIn || t.expires_in || 0,
-    };
-  },
-
-  /** Refresh access token */
-  refreshToken: (refreshToken: string) => {
-    if (isGatewayOIDCMode()) {
-      return Promise.reject(new Error('Session refresh is handled by Envoy Gateway in gateway_oidc mode'));
-    }
-    return iamRequest<{
-      accessToken?: string;
-      refreshToken?: string;
-      idToken?: string;
-      expiresIn?: number;
-    }>('/v1/iam/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken }),
-    });
-  },
-
-  /** Get current user profile */
+  /** Get current user principal restored by Kernel from Gateway claim headers. */
   getMe: () => iamRequest<IamPrincipal>('/v1/iam/me'),
 
-  /** Build Casdoor OIDC RP-Initiated Logout URL */
-  logoutUrl: (postLogoutRedirectUri = '', idTokenHint = '', state = '') => {
-    if (isGatewayOIDCMode()) {
-      return Promise.resolve(buildGatewayLogoutUrl());
-    }
-    const q = toQuery({
-      post_logout_redirect_uri: postLogoutRedirectUri,
-      id_token_hint: idTokenHint,
-      state,
-    });
-    return iamRequest<{ logoutUrl?: string; logout_url?: string }>(
-      `/v1/iam/logout-url${q ? `?${q}` : ''}`,
-      { method: 'GET' },
-      true, // public endpoint, no auth header
-    ).then((r) => r.logoutUrl || r.logout_url || '');
-  },
+  /** Gateway logout endpoint configured in Envoy Gateway SecurityPolicy. */
+  logoutUrl: () => Promise.resolve('/v1/iam/logout'),
 };
 
 /** IAM Directory Service */
@@ -371,9 +253,7 @@ export const iamGrantService = {
     }),
 };
 
-// ─── Legacy Local User API (hub backend) ───────────────────────────────
-// These are for the "Local Users" tab which manages users in the hub's
-// own database (not Casdoor). They talk to the hub backend.
+// ─── Local User API ────────────────────────────────────────────────────
 
 export const localUserApi = {
   list: () => request<{ users: LocalUser[] }>('/v1/users'),
