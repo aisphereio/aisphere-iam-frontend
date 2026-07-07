@@ -39,15 +39,32 @@ export const iamAuthApi = {
   logoutUrl: () => Promise.resolve('/v1/iam/logout'),
 };
 
-/** IAM Directory Service */
+/** IAM Directory Service
+ *
+ * Users are treated as external Casdoor users. The frontend is read-only and
+ * does not create, update, disable, or delete identity-provider users.
+ */
 export const iamDirectoryApi = {
   /** Get a user by org and user id */
   getUser: (orgId: string, userId: string) =>
     iamRequest<IamUser>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/users/${encodeURIComponent(userId)}`),
 
-  /** List users in an organization */
-  listUsers: (orgId: string) =>
-    iamRequest<{ users: IamUser[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/users`),
+  /** List external users in a Casdoor organization */
+  listUsers: (
+    orgId: string,
+    params?: { query?: string; groupId?: string; role?: string; pageSize?: number; pageToken?: string },
+  ) => {
+    const q = toQuery({
+      query: params?.query,
+      group_id: params?.groupId,
+      role: params?.role,
+      page_size: params?.pageSize,
+      page_token: params?.pageToken,
+    });
+    return iamRequest<{ users: IamUser[]; nextPageToken?: string; next_page_token?: string }>(
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/users${q ? `?${q}` : ''}`,
+    );
+  },
 
   /** Get organization */
   getOrganization: (orgId: string) =>
