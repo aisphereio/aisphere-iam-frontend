@@ -1,20 +1,18 @@
 /**
  * API client for aisphere-iam-front.
  *
- * Talks DIRECTLY to the aisphere-iam backend (no Next.js rewrites). The IAM URL
- * is configured via NEXT_PUBLIC_IAM_URL env var (defaults to
- * http://127.0.0.1:18080 for local dev).
+ * Auth modes:
  *
- * Auth:
+ *   1. legacy_token (default):
+ *      The frontend drives the Casdoor OAuth flow through IAM, stores the
+ *      returned token set in localStorage, and sends Authorization: Bearer on
+ *      every request.
  *
- *   Access token is stored in localStorage and sent as
- *   `Authorization: Bearer <token>` on every request. On 401, the
- *   client automatically calls /v1/iam/auth/refresh once and retries the
- *   original request. If refresh fails, tokens are cleared and the
- *   user is redirected to login.
- *
- *   Public endpoints (/v1/iam/login-url, /v1/iam/auth/exchange, etc.) do
- *   not require a token — the IAM service's authn middleware skips them.
+ *   2. gateway_oidc:
+ *      Envoy Gateway owns the OIDC browser flow, callback, session cookie, and
+ *      access-token forwarding. The frontend does not call /login-url or
+ *      /auth/exchange and does not persist Casdoor tokens in localStorage.
+ *      Requests include browser credentials so Gateway session cookies are sent.
  */
 
 const TOKEN_KEY = 'iam_console_token';
@@ -22,10 +20,36 @@ const REFRESH_KEY = 'iam_console_refresh';
 const ID_TOKEN_KEY = 'iam_console_id_token';
 const EXPIRES_KEY = 'iam_console_expires';
 
+export const AUTH_MODE: string = (process.env.NEXT_PUBLIC_AUTH_MODE || 'legacy_token').toLowerCase();
+
 /** IAM base URL. Always ends without trailing slash. */
 export const IAM_URL: string = (
   process.env.NEXT_PUBLIC_IAM_URL || 'http://127.0.0.1:18080'
 ).replace(/\/+$/, '');
+
+export function isGatewayOIDCMode(): boolean {
+  return AUTH_MODE === 'gateway_oidc' || AUTH_MODE === 'gateway';
+}
+
+/**
+ * URL used to trigger a top-level Gateway OIDC login.
+ *
+ * In production, prefer setting NEXT_PUBLIC_GATEWAY_LOGIN_URL to the frontend
+ * route protected by Envoy Gateway. If it is not configured, we fall back to
+ * /v1/iam/me, which is enough to prove the Gateway OIDC flow but will show JSON
+ * after successful login.
+ */
+export function buildGatewayLoginUrl(_state = ''): string {
+  const configured = process.env.NEXT_PUBLIC_GATEWAY_LOGIN_URL;
+  if (configured) return configured;
+  return `${IAM_URL}/v1/iam/me`;
+}
+
+export function buildGatewayLogoutUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_GATEWAY_LOGOUT_URL;
+  if (configured) return configured;
+  return `${IAM_URL}/v1/iam/logout`;
+}
 
 /** Listeners fired when the session becomes invalid (401) or on explicit logout. */
 type AuthListener = (reason: 'expired' | 'logout' | 'manual') => void;
@@ -49,17 +73,17 @@ function emitAuth(reason: 'expired' | 'logout' | 'manual') {
 }
 
 export function getToken(): string {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === 'undefined' || isGatewayOIDCMode()) return '';
   return localStorage.getItem(TOKEN_KEY) || '';
 }
 
 export function getRefreshToken(): string {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === 'undefined' || isGatewayOIDCMode()) return '';
   return localStorage.getItem(REFRESH_KEY) || '';
 }
 
 export function getIdToken(): string {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === 'undefined' || isGatewayOIDCMode()) return '';
   return localStorage.getItem(ID_TOKEN_KEY) || '';
 }
 
@@ -68,7 +92,7 @@ export function setTokens(
   refreshToken?: string,
   opts?: { idToken?: string; expiresIn?: number },
 ) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || isGatewayOIDCMode()) return;
   localStorage.setItem(TOKEN_KEY, accessToken);
   if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
   if (opts?.idToken) localStorage.setItem(ID_TOKEN_KEY, opts.idToken);
@@ -79,7 +103,7 @@ export function setTokens(
 }
 
 export function getTokenExpiresAt(): number {
-  if (typeof window === 'undefined') return 0;
+  if (typeof window === 'undefined' || isGatewayOIDCMode()) return 0;
   const raw = localStorage.getItem(EXPIRES_KEY);
   return raw ? Number(raw) : 0;
 }
@@ -92,11 +116,12 @@ export function isTokenExpiring(): boolean {
 }
 
 export function clearTokens(reason: 'expired' | 'logout' | 'manual' = 'manual') {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-  localStorage.removeItem(ID_TOKEN_KEY);
-  localStorage.removeItem(EXPIRES_KEY);
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(ID_TOKEN_KEY);
+    localStorage.removeItem(EXPIRES_KEY);
+  }
   emitAuth(reason);
 }
 
@@ -127,6 +152,7 @@ export function registerRefreshFn(
 }
 
 export function refreshAccessToken(): Promise<string> {
+  if (isGatewayOIDCMode()) return Promise.reject(new Error('gateway OIDC sessions are refreshed by Envoy Gateway'));
   if (refreshPromise) return refreshPromise;
   if (!onManualRefresh) return Promise.reject(new Error('no refresh fn'));
   refreshPromise = onManualRefresh()
@@ -145,28 +171,35 @@ export function refreshAccessToken(): Promise<string> {
 
 /**
  * Core request function. Sends a request to the IAM service, auto-refreshes
- * on 401, and returns the JSON body.
+ * on 401 in legacy_token mode, and returns the JSON body.
  *
  * `path` is a path relative to IAM_URL (e.g. '/v1/iam/me').
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const fullUrl = IAM_URL + path;
   const headers = new Headers(init.headers || []);
+  const gatewayMode = isGatewayOIDCMode();
   const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (!gatewayMode && token) headers.set('Authorization', `Bearer ${token}`);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  let res = await fetch(fullUrl, { ...init, headers });
+  const requestInit: RequestInit = {
+    ...init,
+    headers,
+    credentials: gatewayMode ? 'include' : init.credentials,
+  };
 
-  // Try one automatic refresh on 401 if we have a refresh token.
+  let res = await fetch(fullUrl, requestInit);
+
+  // Try one automatic refresh on 401 in legacy_token mode if we have a refresh token.
   // Skip the refresh endpoint itself to avoid infinite loops.
-  if (res.status === 401 && token && getRefreshToken() && !path.endsWith('/v1/iam/auth/refresh')) {
+  if (!gatewayMode && res.status === 401 && token && getRefreshToken() && !path.endsWith('/v1/iam/auth/refresh')) {
     try {
       const newToken = await refreshAccessToken();
       headers.set('Authorization', `Bearer ${newToken}`);
-      res = await fetch(fullUrl, { ...init, headers });
+      res = await fetch(fullUrl, { ...requestInit, headers });
     } catch {
       clearTokens('expired');
       throw new Error('common.sessionExpired');
