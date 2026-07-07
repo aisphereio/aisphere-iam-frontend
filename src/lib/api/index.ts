@@ -25,11 +25,16 @@ const IAM_URL: string = (
   process.env.NEXT_PUBLIC_IAM_URL || 'http://127.0.0.1:18080'
 ).replace(/\/+$/, '');
 
-function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+function iamRequest<T>(path: string, init: RequestInit = {}, publicEndpoint = false): Promise<T> {
   const fullUrl = IAM_URL + path;
   const headers = new Headers(init.headers || []);
-  const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  // Public endpoints (login-url, exchange, etc.) must NOT send Authorization
+  // header, otherwise the IAM backend will try to validate a stale token
+  // before processing the request, causing 401 and consuming the OAuth code.
+  if (!publicEndpoint) {
+    const token = getToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+  }
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
@@ -54,6 +59,8 @@ export const iamAuthApi = {
   buildLoginUrl: (redirectUri: string, state = '') =>
     iamRequest<{ loginUrl?: string; login_url?: string }>(
       `/v1/iam/login-url?${toQuery({ redirect_uri: redirectUri, state })}`,
+      {},
+      true, // public endpoint, no auth header
     ).then((r) => r.loginUrl || r.login_url || ''),
 
   /** Exchange authorization code for tokens */
@@ -85,7 +92,7 @@ export const iamAuthApi = {
     }>('/v1/iam/auth/exchange', {
       method: 'POST',
       body: JSON.stringify({ code, redirect_uri: redirectUri, state }),
-    });
+    }, true); // public endpoint, no auth header
     // Handle both nested { tokens: {...} } and flat response structures
     const t = raw.tokens || raw;
     return {
@@ -122,6 +129,7 @@ export const iamAuthApi = {
     return iamRequest<{ logoutUrl?: string; logout_url?: string }>(
       `/v1/iam/logout-url${q ? `?${q}` : ''}`,
       { method: 'GET' },
+      true, // public endpoint, no auth header
     ).then((r) => r.logoutUrl || r.logout_url || '');
   },
 };
