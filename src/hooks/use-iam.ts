@@ -6,57 +6,10 @@ import {
   iamProjectApi,
   iamResourceService,
   iamGrantService,
-  localUserApi,
 } from '@/lib/api';
-import type { IamCpOrganization, LocalUser } from '@/lib/api/types';
+import type { IamCpOrganization } from '@/lib/api/types';
 
-// ─── External Casdoor Users ─────────────────────────────────────────────
-
-export function useIamExternalUsers(
-  orgId: string,
-  params?: { query?: string; groupId?: string; role?: string; pageSize?: number; pageToken?: string },
-) {
-  return useQuery({
-    queryKey: ['iam', 'external-users', orgId, params],
-    queryFn: () => iamDirectoryApi.listUsers(orgId, params),
-    enabled: Boolean(orgId),
-  });
-}
-
-// ─── Legacy Local Users ─────────────────────────────────────────────────
-// Retained only for older pages that may still import these hooks. New IAM user
-// management must use useIamExternalUsers and treat users as read-only Casdoor
-// identities.
-
-export function useIamUsers() {
-  return useQuery({
-    queryKey: ['iam', 'local-users'],
-    queryFn: () => localUserApi.list(),
-    enabled: false,
-  });
-}
-
-export function useIamSaveUser() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (_u: LocalUser) => {
-      throw new Error('Local user management has been removed; users are read-only Casdoor identities.');
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'local-users'] }),
-  });
-}
-
-export function useIamDeleteUser() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (_username: string) => {
-      throw new Error('Local user management has been removed; users are read-only Casdoor identities.');
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'local-users'] }),
-  });
-}
-
-// ─── Directory ─────────────────────────────────────────────────────────
+// ─── Directory Users (Casdoor External User Directory) ─────────────────
 
 export function useIamDirectoryUsers(orgId: string) {
   return useQuery({

@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import {
-  Users, Building2, FolderKanban, KeyRound, ShieldCheck, Database,
-  Plus, Trash2, Save, Pencil, X, Search, RefreshCw,
+  Users, Building2, Folder, KeyRound, ShieldCheck, Database,
+  Search, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,9 +27,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  useIamUsers,
-  useIamSaveUser,
-  useIamDeleteUser,
+  useIamDirectoryUsers,
   useIamOrganizations,
   useIamCreateOrganization,
   useIamUpdateOrganization,
@@ -48,7 +45,7 @@ import {
 } from '@/hooks/use-iam';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
-import type { LocalUser, IamCpOrganization, Tab } from '@/lib/api/types';
+import type { IamUser, IamCpOrganization, Tab } from '@/lib/api/types';
 
 // ─── Main IAM Page ─────────────────────────────────────────────────────
 // Content is driven by the sidebar navigation — no horizontal tab bar.
@@ -70,145 +67,86 @@ export function IamPage({ tab }: { tab: Tab }) {
   }
 }
 
-// ─── Local Users Tab ───────────────────────────────────────────────────
+// ─── Directory Users Tab (Casdoor External User Directory Viewer) ─────
 
 function LocalUsersTab() {
   const t = useT();
-  const [form, setForm] = useState<LocalUser & { password?: string }>({
-    username: '', password: '', subjectType: 'human', roles: ['agent'], permissions: ['skill:read'], namespaces: ['public'],
-  });
-  const [editing, setEditing] = useState(false);
+  const [search, setSearch] = useState('');
+  const orgId = 'aisphere';
 
-  const { data, isLoading, refetch } = useIamUsers();
+  const { data, isLoading, refetch } = useIamDirectoryUsers(orgId);
   const items = data?.users || [];
-  const saveMutation = useIamSaveUser();
-  const deleteMutation = useIamDeleteUser();
 
-  const handleSave = async () => {
-    try {
-      await saveMutation.mutateAsync(form);
-      toast.success(editing ? t('common.userUpdated') : t('common.userCreated'));
-      setForm({ username: '', password: '', subjectType: 'human', roles: ['agent'], permissions: ['skill:read'], namespaces: ['public'] });
-      setEditing(false);
-      refetch();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t('common.saveFailed'));
-    }
-  };
-
-  const handleDelete = async (username: string) => {
-    try {
-      await deleteMutation.mutateAsync(username);
-      toast.success(t('common.userDeleted'));
-      refetch();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t('common.deleteFailed'));
-    }
-  };
-
-  const handleEdit = (u: LocalUser) => {
-    setForm({ ...u, password: '' });
-    setEditing(true);
-  };
+  const filtered = search
+    ? items.filter((u) =>
+        (u.username || '').toLowerCase().includes(search.toLowerCase()) ||
+        (u.displayName || '').toLowerCase().includes(search.toLowerCase()) ||
+        (u.email || '').toLowerCase().includes(search.toLowerCase()),
+      )
+    : items;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between">
-              {t('users.title')}
-              <Badge variant="secondary">{items.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">{t('users.username')}</TableHead>
-                  <TableHead className="text-xs">{t('users.subjectId')}</TableHead>
-                  <TableHead className="text-xs">{t('users.type')}</TableHead>
-                  <TableHead className="text-xs">{t('users.roles')}</TableHead>
-                  <TableHead className="text-xs">{t('common.status')}</TableHead>
-                  <TableHead className="text-xs w-20">{t('common.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
-                )) : items.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-6">{t('common.noUsers')}</TableCell></TableRow>
-                ) : items.map((u) => (
-                  <TableRow key={u.username}>
-                    <TableCell className="font-medium text-xs">{u.username}</TableCell>
-                    <TableCell className="text-xs font-mono">{u.subjectId || '-'}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-[10px]">{u.subjectType}</Badge></TableCell>
-                    <TableCell><div className="flex flex-wrap gap-1">{(u.roles || []).map((r) => <Badge key={r} variant="secondary" className="text-[10px]">{r}</Badge>)}</div></TableCell>
-                    <TableCell>{u.disabled ? <Badge variant="destructive" className="text-[10px]">{t('users.disabled')}</Badge> : <Badge variant="default" className="text-[10px] bg-green-500">{t('users.active')}</Badge>}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleEdit(u)}><Pencil className="h-3 w-3" /></Button>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDelete(u.username)}><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Search className="h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder={t('common.search')}
+            className="h-8 w-64 text-xs"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[10px]">{items.length} {t('users.title')}</Badge>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => refetch()}>
+            <RefreshCw className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
 
-      <Card className="h-fit sticky top-4">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">{editing ? t('users.edit') : t('users.create')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">{t('users.username')}</label>
-            <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="h-8 text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">{t('users.password')}</label>
-            <Input type="password" value={form.password || ''} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editing ? t('users.passwordKeepPlaceholder') : t('users.passwordPlaceholder')} className="h-8 text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">{t('users.subjectId')}</label>
-            <Input value={form.subjectId || ''} onChange={(e) => setForm({ ...form, subjectId: e.target.value })} placeholder={t('users.subjectIdPlaceholder')} className="h-8 text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">{t('users.type')}</label>
-            <Select value={form.subjectType || 'human'} onValueChange={(v) => setForm({ ...form, subjectType: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="human">{t('users.human')}</SelectItem>
-                <SelectItem value="agent">{t('users.agent')}</SelectItem>
-                <SelectItem value="service">{t('users.service')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">{t('users.roles')} ({t('common.commaSeparated')})</label>
-            <Input value={(form.roles || []).join(',')} onChange={(e) => setForm({ ...form, roles: e.target.value.split(',').map(x => x.trim()).filter(Boolean) })} className="h-8 text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">{t('users.permissions')} ({t('common.onePerLine')})</label>
-            <Textarea value={(form.permissions || []).join('\n')} onChange={(e) => setForm({ ...form, permissions: e.target.value.split('\n').map(x => x.trim()).filter(Boolean) })} rows={3} className="text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">{t('users.namespaces')} ({t('common.commaSeparated')})</label>
-            <Input value={(form.namespaces || []).join(',')} onChange={(e) => setForm({ ...form, namespaces: e.target.value.split(',').map(x => x.trim()).filter(Boolean) })} className="h-8 text-xs" />
-          </div>
-          <div className="flex gap-2">
-            {editing && (
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditing(false); setForm({ username: '', password: '', subjectType: 'human', roles: ['agent'], permissions: ['skill:read'], namespaces: ['public'] }); }}>
-                <X className="h-3 w-3 mr-1" /> {t('users.cancel')}
-              </Button>
-            )}
-            <Button size="sm" className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-500" onClick={handleSave} disabled={saveMutation.isPending}>
-              <Save className="h-3 w-3 mr-1" /> {editing ? t('users.update') : t('users.save')}
-            </Button>
-          </div>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">{t('users.username')}</TableHead>
+                <TableHead className="text-xs">{t('common.displayName')}</TableHead>
+                <TableHead className="text-xs">{t('common.email')}</TableHead>
+                <TableHead className="text-xs">{t('common.phone')}</TableHead>
+                <TableHead className="text-xs">{t('users.roles')}</TableHead>
+                <TableHead className="text-xs">{t('common.status')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
+              )) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-6">{t('common.noUsers')}</TableCell></TableRow>
+              ) : filtered.map((u) => (
+                <TableRow key={u.id || u.username}>
+                  <TableCell className="font-medium text-xs">{u.username}</TableCell>
+                  <TableCell className="text-xs">{u.displayName || '-'}</TableCell>
+                  <TableCell className="text-xs">{u.email || '-'}</TableCell>
+                  <TableCell className="text-xs">{u.phone || '-'}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(u.roles || []).length > 0
+                        ? (u.roles || []).map((r) => <Badge key={r} variant="secondary" className="text-[10px]">{r}</Badge>)
+                        : <span className="text-[10px] text-muted-foreground">-</span>
+                      }
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {u.enabled !== false
+                      ? <Badge variant="default" className="text-[10px] bg-green-500">{t('users.active')}</Badge>
+                      : <Badge variant="destructive" className="text-[10px]">{t('users.disabled')}</Badge>
+                    }
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
