@@ -10,15 +10,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useMe } from '@/hooks/use-auth';
 import { useIamExternalUsers } from '@/hooks/use-iam';
-import type { IamUser } from '@/lib/api/types';
+import type { IamPrincipal, IamUser } from '@/lib/api/types';
 
-function defaultOrgFromPrincipal(principal: unknown): string {
-  const p = (principal || {}) as Record<string, unknown>;
+function defaultOrgFromPrincipal(principal?: IamPrincipal): string {
   const candidates = [
     process.env.NEXT_PUBLIC_CASDOOR_ORG,
     process.env.NEXT_PUBLIC_DEFAULT_ORG_ID,
-    p.orgId,
-    p.tenantId,
+    principal?.orgId,
+    principal?.tenantId,
     'aisphere',
   ];
   for (const candidate of candidates) {
@@ -47,7 +46,7 @@ export function ExternalUsersPage() {
   const [orgId, setOrgId] = useState('');
   const [query, setQuery] = useState('');
 
-  const effectiveOrgId = orgId.trim() || defaultOrgFromPrincipal(me?.principal || me);
+  const effectiveOrgId = orgId.trim() || defaultOrgFromPrincipal(me);
   const { data, isLoading, isFetching, error, refetch } = useIamExternalUsers(effectiveOrgId, {
     pageSize: 200,
   });
