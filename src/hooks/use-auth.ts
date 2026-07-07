@@ -3,6 +3,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { iamAuthApi } from '@/lib/api';
 import { buildGatewayLogoutUrl } from '@/lib/api/client';
+import type { IamPrincipal } from '@/lib/api/types';
+
+type GetMeReply = {
+  principal?: IamPrincipal;
+};
+
+function unwrapPrincipal(value: IamPrincipal | GetMeReply): IamPrincipal {
+  const reply = value as GetMeReply;
+  return reply.principal || (value as IamPrincipal);
+}
 
 /**
  * Fetch the current user principal.
@@ -13,7 +23,7 @@ import { buildGatewayLogoutUrl } from '@/lib/api/client';
 export function useMe() {
   return useQuery({
     queryKey: ['iam', 'me'],
-    queryFn: () => iamAuthApi.getMe(),
+    queryFn: async () => unwrapPrincipal(await iamAuthApi.getMe()),
     retry: 1,
     staleTime: 30_000,
   });
