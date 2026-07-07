@@ -1,35 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
-import { iamAuthApi } from '@/lib/api';
 import { LanguageToggle } from '@/components/layout/language-toggle';
 
+/**
+ * Login page.
+ *
+ * In Gateway-only OIDC mode, the Envoy Gateway handles authentication.
+ * Clicking "Login" redirects to the Gateway's OIDC authorization endpoint,
+ * which redirects to Casdoor. After successful login, the Gateway redirects
+ * back to the app with the user already authenticated.
+ */
 export function LoginPage() {
   const t = useT();
-  const [loading, setLoading] = useState(false);
 
-  const loginWithCasdoor = async () => {
-    setLoading(true);
-    try {
-      const callbackPath = process.env.NEXT_PUBLIC_AUTH_CALLBACK_PATH || '/auth/callback';
-      const redirectUri = callbackPath.startsWith('http')
-        ? callbackPath
-        : `${window.location.origin}${callbackPath}`;
-      const state = window.location.pathname + window.location.search;
-      const loginUrl = await iamAuthApi.buildLoginUrl(redirectUri, state);
-      if (loginUrl) {
-        window.location.href = loginUrl;
-      } else {
-        throw new Error(t('login.noToken'));
-      }
-    } catch (err) {
-      console.error('Login failed:', err);
-      setLoading(false);
-    }
+  const loginWithGateway = () => {
+    // Redirect to the app's root — the Gateway OIDC SecurityPolicy will
+    // intercept the unauthenticated request and redirect to Casdoor.
+    window.location.href = '/';
   };
 
   return (
@@ -59,21 +51,13 @@ export function LoginPage() {
           </div>
 
           <Button
-            onClick={loginWithCasdoor}
-            disabled={loading}
+            onClick={loginWithGateway}
             className="w-full h-11 text-sm font-medium bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-500 hover:to-fuchsia-400 text-white shadow-lg shadow-violet-500/20 transition-all duration-200"
           >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                {t('login.completing')}
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <LogIn className="h-4 w-4" />
-                {t('login.casdoor')}
-              </span>
-            )}
+            <span className="flex items-center gap-2">
+              <LogIn className="h-4 w-4" />
+              {t('login.casdoor')}
+            </span>
           </Button>
 
           <p className="text-xs text-muted-foreground/60 text-center mt-4">{t('login.note')}</p>
@@ -86,4 +70,3 @@ export function LoginPage() {
     </div>
   );
 }
-

@@ -177,9 +177,11 @@ export function refreshAccessToken(): Promise<string> {
  * `path` is a path relative to IAM_URL (e.g. '/v1/iam/me').
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const fullUrl = IAM_URL + path;
-  const headers = new Headers(init.headers || []);
   const gatewayMode = isGatewayOIDCMode();
+  // In gateway_oidc mode, requests go through Next.js rewrites (same-origin),
+  // so use a relative path. The Next.js dev server proxies to the Gateway.
+  const fullUrl = gatewayMode ? path : IAM_URL + path;
+  const headers = new Headers(init.headers || []);
   const token = getToken();
   if (!gatewayMode && token) headers.set('Authorization', `Bearer ${token}`);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
@@ -189,7 +191,8 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   const requestInit: RequestInit = {
     ...init,
     headers,
-    credentials: gatewayMode ? 'include' : init.credentials,
+    // In gateway_oidc mode, requests go through Next.js rewrites (same-origin),
+    // so no need for credentials: 'include'. In legacy mode, keep default.
   };
 
   let res = await fetch(fullUrl, requestInit);

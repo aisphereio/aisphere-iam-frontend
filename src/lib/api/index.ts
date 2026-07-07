@@ -30,9 +30,10 @@ import type {
 // ─── IAM Service API (aisphere-iam /v1/iam/*) ──────────────────────────
 
 function iamRequest<T>(path: string, init: RequestInit = {}, publicEndpoint = false): Promise<T> {
-  const fullUrl = IAM_URL + path;
-  const headers = new Headers(init.headers || []);
   const gatewayMode = isGatewayOIDCMode();
+  // In gateway_oidc mode, requests go through Next.js rewrites (same-origin).
+  const fullUrl = gatewayMode ? path : IAM_URL + path;
+  const headers = new Headers(init.headers || []);
   // Public endpoints (login-url, exchange, etc.) must NOT send Authorization
   // header, otherwise the IAM backend will try to validate a stale token
   // before processing the request, causing 401 and consuming the OAuth code.
@@ -46,7 +47,6 @@ function iamRequest<T>(path: string, init: RequestInit = {}, publicEndpoint = fa
   return fetch(fullUrl, {
     ...init,
     headers,
-    credentials: gatewayMode ? 'include' : init.credentials,
   }).then(async (res) => {
     if (!res.ok) {
       let msg = `${res.status} ${res.statusText}`;

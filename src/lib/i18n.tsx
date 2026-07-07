@@ -26,11 +26,7 @@ const enDict: Dict = {
   'login.casdoor': 'Login with Casdoor',
   'login.note': 'You will be redirected to Casdoor for authentication',
   'login.footer': 'Aisphere IAM Management Console',
-  'login.storing': 'Storing credentials...',
-  'login.completing': 'Completing login...',
-  'login.noToken': 'No token received from authentication provider',
-
-  'user.logout': 'Logout',
+'user.logout': 'Logout',
   'user.openProfile': 'Open Profile',
 
   'common.loading': 'Loading...',
@@ -121,10 +117,7 @@ const enDict: Dict = {
   'common.minutesAgo': '{minutes}m ago',
   'common.hoursAgo': '{hours}h ago',
   'common.daysAgo': '{days}d ago',
-  'common.sessionExpired': 'session expired',
-  'common.noRefreshToken': 'no refresh token',
-  'common.noAccessToken': 'No access token received',
-  'common.member': 'member',
+'common.member': 'member',
 
   'iam.title': 'IAM Management',
   'iam.subtitle': 'Identity, directory, and access control management',
@@ -271,11 +264,7 @@ const zhDict: Dict = {
   'login.casdoor': '通过 Casdoor 登录',
   'login.note': '您将被重定向到 Casdoor 进行身份验证',
   'login.footer': 'Aisphere IAM 管理控制台',
-  'login.storing': '正在存储凭证...',
-  'login.completing': '正在完成登录...',
-  'login.noToken': '未从认证提供者收到令牌',
-
-  'user.logout': '退出登录',
+'user.logout': '退出登录',
   'user.openProfile': '打开个人资料',
 
   'common.loading': '加载中...',
@@ -365,10 +354,7 @@ const zhDict: Dict = {
   'common.minutesAgo': '{minutes}分钟前',
   'common.hoursAgo': '{hours}小时前',
   'common.daysAgo': '{days}天前',
-  'common.sessionExpired': '会话已过期',
-  'common.noRefreshToken': '无刷新令牌',
-  'common.noAccessToken': '未收到访问令牌',
-  'common.member': '成员',
+'common.member': '成员',
 
   'iam.title': 'IAM 管理',
   'iam.subtitle': '身份、目录和访问控制管理',
