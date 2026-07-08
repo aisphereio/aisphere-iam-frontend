@@ -150,6 +150,8 @@ export const iamAuthApi = {
 };
 
 /** IAM Directory Service */
+type IamGroupWrite = { parentId?: string; name?: string; displayName?: string; type?: string };
+
 export const iamDirectoryApi = {
   getUser: (orgId: string, userId: string) =>
     iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/users/${encodeURIComponent(userId)}`).then(normalizeIamUser),
@@ -182,21 +184,33 @@ export const iamDirectoryApi = {
     return iamRequest<{ groups: IamGroup[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups${q ? `?${q}` : ''}`);
   },
 
-  createGroup: (orgId: string, group: { parentId?: string; name: string; displayName?: string; type?: string }) =>
+  createGroup: (orgId: string, group: IamGroupWrite & { name: string }) =>
     iamRequest<IamGroup>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`, {
       method: 'POST',
-      body: JSON.stringify(group),
+      body: JSON.stringify({ group }),
     }),
 
-  updateGroup: (orgId: string, groupId: string, group: { parentId?: string; name?: string; displayName?: string; type?: string }) =>
+  updateGroup: (orgId: string, groupId: string, group: IamGroupWrite) =>
     iamRequest<IamGroup>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}`, {
       method: 'PATCH',
-      body: JSON.stringify(group),
+      body: JSON.stringify({ group }),
     }),
 
   deleteGroup: (orgId: string, groupId: string, recursive = false) =>
     iamRequest<{ success: boolean }>(
       `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}${recursive ? '?recursive=true' : ''}`,
+      { method: 'DELETE' },
+    ),
+
+  assignUserToGroup: (orgId: string, groupId: string, userId: string) =>
+    iamRequest<Record<string, never>>(
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+
+  removeUserFromGroup: (orgId: string, groupId: string, userId: string) =>
+    iamRequest<Record<string, never>>(
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
       { method: 'DELETE' },
     ),
 };
