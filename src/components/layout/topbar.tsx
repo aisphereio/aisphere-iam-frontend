@@ -14,13 +14,13 @@ interface TopbarProps {
 }
 
 const tabLabels: Record<Tab, string> = {
-  users: 'nav.users',
-  groups: 'nav.groups',
-  organizations: 'nav.groups',
+  users: '本地用户',
+  groups: '组织与用户组',
+  organizations: '组织与用户组',
   projects: 'nav.projects',
   grants: 'nav.grants',
   resources: 'nav.resources',
-  permissions: 'nav.permissions',
+  permissions: '权限控制台',
 };
 
 export function Topbar({ activeTab, onMenuClick }: TopbarProps) {
