@@ -7,6 +7,8 @@
  */
 export const IAM_URL: string = (process.env.NEXT_PUBLIC_IAM_URL || '').replace(/\/+$/, '');
 
+const LOGIN_PROBE_KEY = 'aisphere_iam_gateway_login_started';
+
 export function apiUrl(path: string): string {
   if (!path.startsWith('/')) {
     throw new Error(`IAM request path must be relative: ${path}`);
@@ -14,7 +16,53 @@ export function apiUrl(path: string): string {
   return IAM_URL ? `${IAM_URL}${path}` : path;
 }
 
+function apiOrigin(): string {
+  if (typeof window === 'undefined' || !IAM_URL) return '';
+  try {
+    return new URL(IAM_URL, window.location.origin).origin;
+  } catch {
+    return '';
+  }
+}
+
+export function isCrossOriginIAM(): boolean {
+  if (typeof window === 'undefined' || !IAM_URL) return false;
+  return apiOrigin() !== '' && apiOrigin() !== window.location.origin;
+}
+
+export function markGatewayLoginStarted(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(LOGIN_PROBE_KEY, '1');
+  } catch {
+    // Ignore unavailable storage, for example strict privacy modes.
+  }
+}
+
+function hasGatewayLoginStarted(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.sessionStorage.getItem(LOGIN_PROBE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Same-origin Gateway hosting can always probe /me because the whole frontend is
+ * already behind OIDC. In local cross-origin development, probing /me before the
+ * user clicks Login triggers Envoy's OIDC redirect inside XHR, producing noisy
+ * authorize requests whose state points to /v1/iam/me. Avoid that until a login
+ * flow has been started explicitly.
+ */
+export function shouldProbePrincipal(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (!isCrossOriginIAM()) return true;
+  return hasGatewayLoginStarted();
+}
+
 export function buildGatewayLoginUrl(): string {
+  markGatewayLoginStarted();
   const loginUrl = process.env.NEXT_PUBLIC_GATEWAY_LOGIN_URL || '/v1/iam/ui/login';
   const target = loginUrl.startsWith('/') ? apiUrl(loginUrl) : loginUrl;
   if (typeof window === 'undefined') return target;
