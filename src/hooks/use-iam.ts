@@ -7,6 +7,7 @@ import {
   iamResourceService,
   iamGrantService,
 } from '@/lib/api';
+import { request } from '@/lib/api/client';
 import type { IamCpOrganization } from '@/lib/api/types';
 
 // ─── Directory Users (Casdoor External User Directory) ─────────────────
@@ -71,6 +72,46 @@ export function useIamDeleteGroup() {
     mutationFn: (params: { orgId: string; groupId: string; recursive?: boolean }) =>
       iamDirectoryApi.deleteGroup(params.orgId, params.groupId, Boolean(params.recursive)),
     onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['iam', 'directory-groups', vars.orgId] }),
+  });
+}
+
+type GroupMembershipParams = { orgId: string; groupId: string; userId: string };
+
+function groupMembershipBody(params: GroupMembershipParams) {
+  return JSON.stringify({
+    org_id: params.orgId,
+    group_id: params.groupId,
+    user_id: params.userId,
+  });
+}
+
+export function useIamAssignUserToGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: GroupMembershipParams) =>
+      request<{ success: boolean }>('/v1/iam/directory/group-memberships:assign', {
+        method: 'POST',
+        body: groupMembershipBody(params),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['iam', 'directory-groups', vars.orgId] });
+      qc.invalidateQueries({ queryKey: ['iam', 'external-users', vars.orgId] });
+    },
+  });
+}
+
+export function useIamRemoveUserFromGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: GroupMembershipParams) =>
+      request<{ success: boolean }>('/v1/iam/directory/group-memberships:remove', {
+        method: 'POST',
+        body: groupMembershipBody(params),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['iam', 'directory-groups', vars.orgId] });
+      qc.invalidateQueries({ queryKey: ['iam', 'external-users', vars.orgId] });
+    },
   });
 }
 
