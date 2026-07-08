@@ -5,12 +5,16 @@ export interface FriendlyPermission {
   label: string;
   expression?: string;
   description: string;
+  sources: string[];
+  inherited: string[];
 }
 
 export interface FriendlyRelation {
   key: string;
   label: string;
   description: string;
+  targets?: string;
+  inherited?: boolean;
 }
 
 export interface FriendlyRoleTemplate {
@@ -24,18 +28,19 @@ export interface FriendlyResourceModel {
   type: string;
   label: string;
   description: string;
-  source: 'control-plane' | 'schema';
+  source: 'control-plane' | 'schema' | 'merged';
   relations: FriendlyRelation[];
   permissions: FriendlyPermission[];
   roles: FriendlyRoleTemplate[];
+  inheritedRelations: FriendlyRelation[];
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
-  zone: '组织空间',
-  group: '用户组',
+  zone: '用户源 / 身份域',
+  group: '组织节点',
   iam_authz: '权限控制台',
   iam: 'IAM 管理资源',
-  organization: '组织',
+  organization: '平台组织',
   project: '项目',
   skill_space: 'Skill 空间',
   skill: 'Skill',
@@ -52,11 +57,12 @@ const RESOURCE_LABELS: Record<string, string> = {
 };
 
 const RESOURCE_DESCRIPTIONS: Record<string, string> = {
-  zone: '租户级根资源，用于管理本地用户、用户组和权限。',
-  group: '用户集合，可作为授权主体，也可作为可管理资源。',
-  iam_authz: '用于维护 SpiceDB schema、relationship 和权限诊断的全局管理资源。',
-  organization: '平台组织资源。',
-  project: '组织下的项目资源。',
+  zone: 'Casdoor org / identity zone 映射到 SpiceDB 的根身份域，用于管理用户、组织树和权限。',
+  group: '平台组织树节点，底层由 Casdoor 多级 group 承载；既是可管理资源，也可以通过 group#member 作为授权主体。',
+  iam_authz: '维护 SpiceDB schema、relationships、权限诊断和修复的全局管理资源。',
+  iam: 'IAM 控制面内置资源，如组织、项目、资源类型、授权模板等。',
+  organization: '平台租户组织资源，和身份域不同，是业务控制面组织。',
+  project: '平台组织下的项目资源。',
   skill_space: '项目下的 Skill 管理空间。',
   skill: '具体 Skill 资源。',
   git_namespace: '项目下的 Git 命名空间。',
@@ -76,7 +82,7 @@ const RELATION_LABELS: Record<string, string> = {
   admin: '管理员',
   member: '成员',
   parent: '上级资源',
-  zone: '所属组织空间',
+  zone: '所属用户源',
   manager: '管理者',
   viewer: '查看者',
   editor: '编辑者',
@@ -89,8 +95,8 @@ const RELATION_LABELS: Record<string, string> = {
   reader: '读取者',
   user_viewer: '用户查看员',
   user_manager: '用户管理员',
-  group_viewer: '用户组查看员',
-  group_manager: '用户组管理员',
+  group_viewer: '组织查看员',
+  group_manager: '组织管理员',
   permission_admin: '权限管理员',
   schema_admin: 'Schema 管理员',
   auditor: '审计员',
@@ -100,19 +106,19 @@ const RELATION_LABELS: Record<string, string> = {
 };
 
 const PERMISSION_LABELS: Record<string, string> = {
-  view_zone: '查看组织空间',
+  view_zone: '查看用户源',
   view_users: '查看用户',
   manage_users: '管理用户',
-  view_groups: '查看用户组',
-  create_groups: '创建用户组',
-  manage_groups: '管理用户组',
+  view_groups: '查看组织树',
+  create_groups: '创建组织',
+  manage_groups: '管理组织',
   view_permissions: '查看权限',
   manage_permissions: '管理权限',
   view_schema: '查看权限模型',
   publish_schema: '发布权限模型',
   view_relationships: '查看授权关系',
   repair_relationships: '修复授权关系',
-  create_child_groups: '创建子用户组',
+  create_child_groups: '创建子组织',
   manage_members: '管理成员',
   manage: '管理',
   edit: '编辑',
@@ -160,10 +166,14 @@ export function buildFriendlyResourceModels(
   roleTemplates: IamRoleTemplate[] | undefined,
   schemaText: string,
 ): FriendlyResourceModel[] {
+  const schemaResources = parseSchemaText(schemaText);
+  const schemaByType = new Map(schemaResources.map((resource) => [resource.type, resource]));
+
   const fromControlPlane = (resourceTypes || [])
     .map((rt) => {
       const type = rt.spicedbType || rt.type;
       if (!type) return null;
+      const schema = schemaByType.get(type);
       const roles = (roleTemplates || [])
         .filter((role) => role.resourceType === rt.type || role.resourceType === type)
         .map((role) => ({
@@ -172,23 +182,37 @@ export function buildFriendlyResourceModels(
           relation: role.relation,
           description: role.description,
         }));
-      return {
+      const relations = mergeRelations(
+        (rt.relations || []).map((key) => ({ key, label: relationLabel(key), description: relationDescription(key) })),
+        schema?.relations || [],
+      );
+      const permissions = mergePermissions(
+        (rt.permissions || []).map((key) => ({
+          key,
+          label: permissionLabel(key),
+          description: permissionDescription(key),
+          sources: [],
+          inherited: [],
+        })),
+        schema?.permissions || [],
+      );
+      return addDerivedResourceFields({
         type,
         label: resourceLabel(type, rt.displayName),
         description: resourceDescription(type, rt.description),
-        source: 'control-plane' as const,
-        relations: (rt.relations || []).map((key) => ({ key, label: relationLabel(key), description: relationDescription(key) })),
-        permissions: (rt.permissions || []).map((key) => ({ key, label: permissionLabel(key), description: permissionDescription(key) })),
+        source: schema ? 'merged' as const : 'control-plane' as const,
+        relations,
+        permissions,
         roles,
-      };
+        inheritedRelations: [],
+      });
     })
     .filter(Boolean) as FriendlyResourceModel[];
 
-  if (fromControlPlane.length > 0) {
-    return sortResources(fromControlPlane);
-  }
+  const seen = new Set(fromControlPlane.map((resource) => resource.type));
+  const schemaOnly = schemaResources.filter((resource) => !seen.has(resource.type));
 
-  return sortResources(parseSchemaText(schemaText));
+  return sortResources([...fromControlPlane, ...schemaOnly]);
 }
 
 export function parseSchemaText(text: string): FriendlyResourceModel[] {
@@ -202,23 +226,33 @@ export function parseSchemaText(text: string): FriendlyResourceModel[] {
     const permissions: FriendlyPermission[] = [];
     for (const rawLine of body.split('\n')) {
       const line = rawLine.trim();
-      const relationMatch = line.match(/^relation\s+([A-Za-z0-9_]+)\s*:/);
+      const relationMatch = line.match(/^relation\s+([A-Za-z0-9_]+)\s*:\s*(.+)$/);
       if (relationMatch) {
         const key = relationMatch[1];
-        relations.push({ key, label: relationLabel(key), description: relationDescription(key) });
+        const targets = relationMatch[2].trim();
+        relations.push({
+          key,
+          label: relationLabel(key),
+          description: relationDescription(key, targets),
+          targets,
+          inherited: isInheritanceRelation(key),
+        });
       }
       const permissionMatch = line.match(/^permission\s+([A-Za-z0-9_]+)\s*=\s*(.+)$/);
       if (permissionMatch) {
         const key = permissionMatch[1];
+        const expression = permissionMatch[2].trim();
         permissions.push({
           key,
           label: permissionLabel(key),
-          expression: permissionMatch[2],
-          description: permissionDescription(key, permissionMatch[2]),
+          expression,
+          description: permissionDescription(key, expression),
+          sources: directPermissionSources(expression),
+          inherited: inheritedPermissionSources(expression),
         });
       }
     }
-    out.push({
+    out.push(addDerivedResourceFields({
       type,
       label: resourceLabel(type),
       description: resourceDescription(type),
@@ -226,48 +260,89 @@ export function parseSchemaText(text: string): FriendlyResourceModel[] {
       relations,
       permissions,
       roles: [],
-    });
+      inheritedRelations: [],
+    }));
   }
   return out;
 }
 
 export function expressionToFriendlyText(expression?: string): string {
   if (!expression) return '由后端资源模型定义。';
-  const parts = expression.split('+').map((p) => p.trim()).filter(Boolean);
+  const parts = splitExpression(expression);
   if (parts.length === 0) return expression;
-  return parts.map((part) => {
-    const inherited = part.match(/^([A-Za-z0-9_]+)->([A-Za-z0-9_]+)$/);
-    if (inherited) {
-      return `继承「${relationLabel(inherited[1])}」的「${permissionLabel(inherited[2])}」`;
-    }
-    return `拥有「${relationLabel(part)}」关系`;
-  }).join('，或');
+  return parts.map((part) => friendlyExpressionPart(part)).join('，或');
 }
 
-function relationDescription(key: string): string {
+export function directPermissionSources(expression?: string): string[] {
+  return splitExpression(expression).filter((part) => !part.includes('->'));
+}
+
+export function inheritedPermissionSources(expression?: string): string[] {
+  return splitExpression(expression).filter((part) => part.includes('->'));
+}
+
+function mergeRelations(controlPlane: FriendlyRelation[], schema: FriendlyRelation[]): FriendlyRelation[] {
+  const byKey = new Map<string, FriendlyRelation>();
+  for (const relation of schema) byKey.set(relation.key, relation);
+  for (const relation of controlPlane) {
+    byKey.set(relation.key, { ...byKey.get(relation.key), ...relation, targets: byKey.get(relation.key)?.targets });
+  }
+  return sortRelations([...byKey.values()]);
+}
+
+function mergePermissions(controlPlane: FriendlyPermission[], schema: FriendlyPermission[]): FriendlyPermission[] {
+  const byKey = new Map<string, FriendlyPermission>();
+  for (const permission of schema) byKey.set(permission.key, permission);
+  for (const permission of controlPlane) {
+    const fromSchema = byKey.get(permission.key);
+    byKey.set(permission.key, {
+      ...permission,
+      expression: fromSchema?.expression,
+      description: fromSchema?.expression ? permissionDescription(permission.key, fromSchema.expression) : permission.description,
+      sources: fromSchema?.sources || [],
+      inherited: fromSchema?.inherited || [],
+    });
+  }
+  return sortPermissions([...byKey.values()]);
+}
+
+function addDerivedResourceFields(resource: FriendlyResourceModel): FriendlyResourceModel {
+  return {
+    ...resource,
+    relations: sortRelations(resource.relations),
+    permissions: sortPermissions(resource.permissions),
+    inheritedRelations: sortRelations(resource.relations.filter((relation) => relation.inherited || isInheritanceRelation(relation.key))),
+  };
+}
+
+function relationDescription(key: string, targets?: string): string {
+  const suffix = targets ? ` 可指向：${targets}` : '';
   switch (key) {
     case 'owner':
-      return '资源最高负责人，通常拥有全部管理权限。';
+      return `资源最高负责人，通常拥有全部管理权限。${suffix}`;
     case 'admin':
-      return '资源管理员，通常拥有管理权限。';
+      return `资源管理员，通常拥有管理权限。${suffix}`;
     case 'member':
-      return '资源普通成员。';
+      return `资源普通成员，也常作为 group#member 的传递成员关系。${suffix}`;
     case 'viewer':
     case 'reader':
     case 'user_viewer':
     case 'group_viewer':
-      return '只读查看类角色。';
+      return `只读查看类关系。${suffix}`;
     case 'manager':
     case 'user_manager':
     case 'group_manager':
     case 'permission_admin':
     case 'schema_admin':
-      return '管理类角色。';
+      return `管理类关系。${suffix}`;
     case 'parent':
+      return `父级资源关系，用于继承父级权限。${suffix}`;
     case 'zone':
-      return '用于继承上级资源权限。';
+      return `所属用户源 / 身份域关系，用于继承用户源级权限。${suffix}`;
+    case 'backing_skill':
+      return `关联 Skill，用于让 Git 仓库继承 Skill 的编辑/查看权限。${suffix}`;
     default:
-      return '可被授予或用于权限继承的关系。';
+      return `可被授予或用于权限继承的关系。${suffix}`;
   }
 }
 
@@ -280,6 +355,31 @@ function permissionDescription(key: string, expression?: string): string {
   return '资源上的可检查权限。';
 }
 
+function friendlyExpressionPart(part: string): string {
+  const normalized = part.replace(/^\((.*)\)$/, '$1').trim();
+  const inherited = normalized.match(/^([A-Za-z0-9_]+)->([A-Za-z0-9_]+)$/);
+  if (inherited) {
+    return `继承「${relationLabel(inherited[1])}」的「${permissionLabel(inherited[2])}」`;
+  }
+  const relationToRelation = normalized.match(/^([A-Za-z0-9_]+)#([A-Za-z0-9_]+)$/);
+  if (relationToRelation) {
+    return `拥有「${relationLabel(relationToRelation[1])}#${relationLabel(relationToRelation[2])}」关系`;
+  }
+  return `拥有「${relationLabel(normalized)}」关系`;
+}
+
+function splitExpression(expression?: string): string[] {
+  if (!expression) return [];
+  return expression
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function isInheritanceRelation(key: string): boolean {
+  return ['parent', 'zone', 'backing_skill', 'runs_agent'].includes(key);
+}
+
 function humanizeKey(key: string): string {
   return key
     .split('_')
@@ -289,11 +389,31 @@ function humanizeKey(key: string): string {
 }
 
 function sortResources(resources: FriendlyResourceModel[]): FriendlyResourceModel[] {
-  const order = ['zone', 'group', 'iam_authz', 'organization', 'project'];
+  const order = ['zone', 'group', 'iam_authz', 'iam', 'organization', 'project', 'skill_space', 'skill', 'git_namespace', 'git_repository', 'agent_space', 'agent', 'tool_space', 'tool', 'sandbox_space', 'sandbox'];
   return [...resources].sort((a, b) => {
     const ai = order.indexOf(a.type);
     const bi = order.indexOf(b.type);
     if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
     return a.type.localeCompare(b.type);
+  });
+}
+
+function sortRelations(relations: FriendlyRelation[]): FriendlyRelation[] {
+  const order = ['zone', 'parent', 'backing_skill', 'owner', 'admin', 'manager', 'member', 'editor', 'developer', 'operator', 'executor', 'viewer', 'reader'];
+  return [...relations].sort((a, b) => {
+    const ai = order.indexOf(a.key);
+    const bi = order.indexOf(b.key);
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return a.key.localeCompare(b.key);
+  });
+}
+
+function sortPermissions(permissions: FriendlyPermission[]): FriendlyPermission[] {
+  const order = ['view_zone', 'view_users', 'manage_users', 'view_groups', 'create_groups', 'manage_groups', 'manage_members', 'view_permissions', 'manage_permissions', 'view', 'read', 'list', 'write', 'edit', 'operate', 'execute', 'manage', 'admin'];
+  return [...permissions].sort((a, b) => {
+    const ai = order.indexOf(a.key);
+    const bi = order.indexOf(b.key);
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return a.key.localeCompare(b.key);
   });
 }
