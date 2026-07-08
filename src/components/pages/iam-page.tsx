@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import {
-  Users, Building2, Folder, KeyRound, ShieldCheck, Database,
-  Search, RefreshCw,
+  Building2, Folder, KeyRound, ShieldCheck, Database,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  useIamDirectoryUsers,
   useIamOrganizations,
   useIamCreateOrganization,
   useIamUpdateOrganization,
@@ -45,7 +44,8 @@ import {
 } from '@/hooks/use-iam';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
-import type { IamUser, IamCpOrganization, Tab } from '@/lib/api/types';
+import { ExternalUsersPage } from './users-page';
+import type { IamCpOrganization, Tab } from '@/lib/api/types';
 
 // ─── Main IAM Page ─────────────────────────────────────────────────────
 // Content is driven by the sidebar navigation — no horizontal tab bar.
@@ -53,7 +53,7 @@ import type { IamUser, IamCpOrganization, Tab } from '@/lib/api/types';
 export function IamPage({ tab }: { tab: Tab }) {
   switch (tab) {
     case 'users':
-      return <LocalUsersTab />;
+      return <ExternalUsersPage />;
     case 'organizations':
       return <OrganizationsTab />;
     case 'projects':
@@ -65,92 +65,6 @@ export function IamPage({ tab }: { tab: Tab }) {
     default:
       return <LocalUsersTab />;
   }
-}
-
-// ─── Directory Users Tab (Casdoor External User Directory Viewer) ─────
-
-function LocalUsersTab() {
-  const t = useT();
-  const [search, setSearch] = useState('');
-  const orgId = 'aisphere';
-
-  const { data, isLoading, refetch } = useIamDirectoryUsers(orgId);
-  const items = data?.users || [];
-
-  const filtered = search
-    ? items.filter((u) =>
-        (u.username || '').toLowerCase().includes(search.toLowerCase()) ||
-        (u.displayName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (u.email || '').toLowerCase().includes(search.toLowerCase()),
-      )
-    : items;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Search className="h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder={t('common.search')}
-            className="h-8 w-64 text-xs"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-[10px]">{items.length} {t('users.title')}</Badge>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => refetch()}>
-            <RefreshCw className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">{t('users.username')}</TableHead>
-                <TableHead className="text-xs">{t('common.displayName')}</TableHead>
-                <TableHead className="text-xs">{t('common.email')}</TableHead>
-                <TableHead className="text-xs">{t('common.phone')}</TableHead>
-                <TableHead className="text-xs">{t('users.roles')}</TableHead>
-                <TableHead className="text-xs">{t('common.status')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
-              )) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-6">{t('common.noUsers')}</TableCell></TableRow>
-              ) : filtered.map((u) => (
-                <TableRow key={u.id || u.username}>
-                  <TableCell className="font-medium text-xs">{u.username}</TableCell>
-                  <TableCell className="text-xs">{u.displayName || '-'}</TableCell>
-                  <TableCell className="text-xs">{u.email || '-'}</TableCell>
-                  <TableCell className="text-xs">{u.phone || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(u.roles || []).length > 0
-                        ? (u.roles || []).map((r) => <Badge key={r} variant="secondary" className="text-[10px]">{r}</Badge>)
-                        : <span className="text-[10px] text-muted-foreground">-</span>
-                      }
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {u.enabled !== false
-                      ? <Badge variant="default" className="text-[10px] bg-green-500">{t('users.active')}</Badge>
-                      : <Badge variant="destructive" className="text-[10px]">{t('users.disabled')}</Badge>
-                    }
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
 }
 
 // ─── Organizations Tab ─────────────────────────────────────────────────

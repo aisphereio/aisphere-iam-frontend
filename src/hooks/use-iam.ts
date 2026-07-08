@@ -19,6 +19,18 @@ export function useIamDirectoryUsers(orgId: string) {
   });
 }
 
+/** Alias for useIamDirectoryUsers with pagination support. */
+export function useIamExternalUsers(
+  orgId: string,
+  params?: { query?: string; groupId?: string; role?: string; pageSize?: number; pageToken?: string },
+) {
+  return useQuery({
+    queryKey: ['iam', 'external-users', orgId, params],
+    queryFn: () => iamDirectoryApi.listUsers(orgId, params),
+    enabled: Boolean(orgId),
+  });
+}
+
 export function useIamDirectoryOrganization(orgId: string) {
   return useQuery({
     queryKey: ['iam', 'directory-org', orgId],
