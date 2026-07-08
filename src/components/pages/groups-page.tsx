@@ -48,19 +48,21 @@ function groupLabel(group?: IamGroup | null): string {
   return group.displayName || group.name || group.id;
 }
 
-function buildChildrenMap(groups: IamGroup[]): Map<string, IamGroup[]> {
-  const map = new Map<string, IamGroup[]>();
-  for (const group of groups) {
-    const parent = group.parentId || '';
-    const bucket = map.get(parent) || [];
-    bucket.push(group);
-    map.set(parent, bucket);
-  }
-  for (const bucket of map.values()) {
-    bucket.sort((a, b) => groupLabel(a).localeCompare(groupLabel(b)));
-  }
-  return map;
-}
+function buildChildrenMap(groups: IamGroup[], orgId: string): Map<string, IamGroup[]> {
+	  const map = new Map<string, IamGroup[]>();
+	  for (const group of groups) {
+	    // Casdoor 中顶级组的 parentId 是组织名（如 "aisphere"），
+	    // 前端统一归到空字符串根节点下展示。
+	    const parent = (!group.parentId || group.parentId === orgId) ? '' : group.parentId;
+	    const bucket = map.get(parent) || [];
+	    bucket.push(group);
+	    map.set(parent, bucket);
+	  }
+	  for (const bucket of map.values()) {
+	    bucket.sort((a, b) => groupLabel(a).localeCompare(groupLabel(b)));
+	  }
+	  return map;
+	}
 
 function buildGroupMap(groups: IamGroup[]): Map<string, IamGroup> {
   const map = new Map<string, IamGroup>();
@@ -141,7 +143,7 @@ export function GroupsPage() {
   const deleteGroup = useIamDeleteGroup();
 
   const groups = data?.groups || [];
-  const childrenMap = useMemo(() => buildChildrenMap(groups), [groups]);
+  const childrenMap = useMemo(() => buildChildrenMap(groups, zoneId), [groups, zoneId]);
   const groupMap = useMemo(() => buildGroupMap(groups), [groups]);
   const selectedId = groupID(selectedGroup);
   const rootGroups = childrenMap.get('') || [];
