@@ -26,32 +26,32 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import type { Tab } from '@/lib/api/types';
 
-type NavItem = { key: Tab; labelKey: string; hintKey: string; icon: React.ReactNode };
-type NavSection = { titleKey: string; icon: React.ReactNode; items: NavItem[] };
+type NavItem = { key: Tab; label: string; hint: string; icon: React.ReactNode };
+type NavSection = { title: string; icon: React.ReactNode; items: NavItem[] };
 
 const navSections: NavSection[] = [
   {
-    titleKey: 'nav.section.identity',
+    title: '身份目录',
     icon: <Users className="h-3.5 w-3.5" />,
     items: [
-      { key: 'users', labelKey: 'nav.users', hintKey: 'nav.users.hint', icon: <Users className="h-4 w-4" /> },
-      { key: 'groups', labelKey: 'nav.groups', hintKey: 'nav.groups.hint', icon: <GitBranch className="h-4 w-4" /> },
+      { key: 'users', label: '本地用户', hint: '查看 Casdoor / Gateway 注入后的用户身份', icon: <Users className="h-4 w-4" /> },
+      { key: 'groups', label: '组织与用户组', hint: '组织根节点 + 多级用户组树', icon: <GitBranch className="h-4 w-4" /> },
     ],
   },
   {
-    titleKey: 'nav.section.resource',
+    title: '资源域',
     icon: <Layers3 className="h-3.5 w-3.5" />,
     items: [
-      { key: 'projects', labelKey: 'nav.projects', hintKey: 'nav.projects.hint', icon: <Folder className="h-4 w-4" /> },
-      { key: 'resources', labelKey: 'nav.resources', hintKey: 'nav.resources.hint', icon: <Database className="h-4 w-4" /> },
+      { key: 'projects', label: '项目', hint: '管理组织下的项目', icon: <Folder className="h-4 w-4" /> },
+      { key: 'resources', label: '资源', hint: '维护资源类型、资源和绑定', icon: <Database className="h-4 w-4" /> },
     ],
   },
   {
-    titleKey: 'nav.section.access',
+    title: '权限治理',
     icon: <ShieldCheck className="h-3.5 w-3.5" />,
     items: [
-      { key: 'grants', labelKey: 'nav.grants', hintKey: 'nav.grants.hint', icon: <Key className="h-4 w-4" /> },
-      { key: 'permissions', labelKey: 'nav.permissions', hintKey: 'nav.permissions.hint', icon: <ShieldCheck className="h-4 w-4" /> },
+      { key: 'grants', label: '授权与角色', hint: '管理角色模板和访问授权', icon: <Key className="h-4 w-4" /> },
+      { key: 'permissions', label: '权限控制台', hint: '查看权限模型、授权关系和有效权限', icon: <ShieldCheck className="h-4 w-4" /> },
     ],
   },
 ];
@@ -119,11 +119,11 @@ export function Sidebar({
           {navSections.map((section) => {
             const sectionActive = section.items.some((item) => item.key === activeTab);
             return (
-              <div key={section.titleKey} className={cn('rounded-lg', !collapsed && sectionActive && 'bg-muted/40 py-1')}>
+              <div key={section.title} className={cn('rounded-lg', !collapsed && sectionActive && 'bg-muted/40 py-1')}>
                 {!collapsed ? (
                   <div className="mb-0.5 flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80">
                     <span className={cn(sectionActive && 'text-violet-600 dark:text-violet-400')}>{section.icon}</span>
-                    <span className="truncate">{t(section.titleKey)}</span>
+                    <span className="truncate">{section.title}</span>
                     <ChevronDown className="ml-auto h-3 w-3 opacity-50" />
                   </div>
                 ) : null}
@@ -156,16 +156,16 @@ export function Sidebar({
                             </span>
                             {!collapsed && (
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-[13px]">{t(item.labelKey)}</div>
-                                {isActive ? <div className="truncate text-[10px] font-normal text-muted-foreground">{t(item.hintKey)}</div> : null}
+                                <div className="truncate text-[13px]">{item.label}</div>
+                                {isActive ? <div className="truncate text-[10px] font-normal text-muted-foreground">{item.hint}</div> : null}
                               </div>
                             )}
                           </button>
                         </TooltipTrigger>
                         {collapsed && (
                           <TooltipContent side="right" className="flex flex-col gap-0.5">
-                            <p className="font-medium">{t(item.labelKey)}</p>
-                            <p className="text-xs text-muted-foreground">{t(item.hintKey)}</p>
+                            <p className="font-medium">{item.label}</p>
+                            <p className="text-xs text-muted-foreground">{item.hint}</p>
                           </TooltipContent>
                         )}
                       </Tooltip>
