@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Sidebar } from './sidebar';
@@ -8,29 +8,91 @@ import { Topbar } from './topbar';
 import { useMe, useLogout } from '@/hooks/use-auth';
 import type { Tab } from '@/lib/api/types';
 import { LoginPage } from './login-page';
-import { shouldProbePrincipal } from '@/lib/api/client';
+import {
+  clearGatewayLoginStarted,
+  consumeGatewayAuthReturn,
+  shouldProbePrincipal,
+} from '@/lib/api/client';
 
 interface AppShellProps {
   children: (tab: Tab) => React.ReactNode;
+}
+
+const LOGIN_CONFIRM_WINDOW_MS = 30_000;
+
+function isRecentLoginAttempt(startedAt: number | null): startedAt is number {
+  return startedAt !== null && Date.now() - startedAt < LOGIN_CONFIRM_WINDOW_MS;
 }
 
 export function AppShell({ children }: AppShellProps) {
   const [tab, setTab] = useState<Tab>('users');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const canProbePrincipal = shouldProbePrincipal();
+  const [loginStartedAt, setLoginStartedAt] = useState<number | null>(null);
+  const [loginConfirmExpired, setLoginConfirmExpired] = useState(false);
+  const [canProbePrincipal, setCanProbePrincipal] = useState(false);
 
-  // In Gateway-protected same-origin deployments, the Envoy Gateway handles
-  // authentication before the request reaches the frontend. In local dev with a
-  // cross-origin IAM API, avoid probing /me until the user explicitly clicks the
-  // login button; otherwise the OIDC redirect happens inside XHR.
+  // In local cross-origin Gateway development, probing /me before explicit
+  // login triggers Envoy OIDC redirects inside XHR. Only render protected
+  // console content after /me confirms the Gateway session.
   const { data: principal, error: principalError } = useMe(canProbePrincipal);
   const logout = useLogout();
 
-  if (!canProbePrincipal || principalError) {
+  useEffect(() => {
+    const returnedAt = consumeGatewayAuthReturn();
+
+    if (isRecentLoginAttempt(returnedAt)) {
+      setLoginStartedAt(returnedAt);
+      setCanProbePrincipal(true);
+      return;
+    }
+
+    clearGatewayLoginStarted();
+    setCanProbePrincipal(shouldProbePrincipal());
+  }, []);
+
+  useEffect(() => {
+    if (!principal) return;
+    clearGatewayLoginStarted();
+    setLoginStartedAt(null);
+    setLoginConfirmExpired(false);
+  }, [principal]);
+
+  useEffect(() => {
+    if (!loginStartedAt || !principalError || loginConfirmExpired) return;
+    clearGatewayLoginStarted();
+    setLoginConfirmExpired(true);
+    setLoginStartedAt(null);
+  }, [loginConfirmExpired, loginStartedAt, principalError]);
+
+  if (!canProbePrincipal) {
     return (
       <TooltipProvider>
         <LoginPage />
+      </TooltipProvider>
+    );
+  }
+
+  if (loginStartedAt && !principal && !principalError && !loginConfirmExpired) {
+    return (
+      <TooltipProvider>
+        <LoginPage state="checking" />
+      </TooltipProvider>
+    );
+  }
+
+  if (!principal && !principalError) {
+    return (
+      <TooltipProvider>
+        <LoginPage state="checking" />
+      </TooltipProvider>
+    );
+  }
+
+  if (principalError) {
+    return (
+      <TooltipProvider>
+        <LoginPage state={loginConfirmExpired ? 'error' : 'idle'} />
       </TooltipProvider>
     );
   }

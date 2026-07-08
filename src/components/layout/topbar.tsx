@@ -25,7 +25,13 @@ const tabLabels: Record<Tab, string> = {
 
 export function Topbar({ activeTab, onMenuClick }: TopbarProps) {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
   const t = useT();
+  const isDark = mounted && theme === 'dark';
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="flex items-center justify-between h-12 px-4 border-b bg-background shrink-0">
@@ -44,9 +50,9 @@ export function Topbar({ activeTab, onMenuClick }: TopbarProps) {
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
         >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
       </div>
     </header>

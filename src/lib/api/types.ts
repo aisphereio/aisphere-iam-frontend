@@ -240,6 +240,8 @@ export interface IamCheckPermissionRequest {
   subject: IamSubjectRef;
   resource: IamResourceRef;
   permission: string;
+  orgId?: string;
+  projectId?: string;
 }
 
 /** IAM Permission Check Response */

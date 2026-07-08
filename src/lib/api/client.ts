@@ -6,8 +6,11 @@
  * example https://api.weagent.cc:30723.
  */
 export const IAM_URL: string = (process.env.NEXT_PUBLIC_IAM_URL || '').replace(/\/+$/, '');
-
-const LOGIN_PROBE_KEY = 'aisphere_iam_gateway_login_started';
+const GATEWAY_LOGIN_STARTED_AT_KEY = 'aisphere_iam_gateway_login_started_at';
+const GATEWAY_AUTH_RETURN_PARAM = 'iam_auth';
+const GATEWAY_AUTH_RETURN_VALUE = 'return';
+const GATEWAY_AUTH_TIME_PARAM = 'iam_auth_t';
+const GATEWAY_LOGIN_CONFIRM_WINDOW_MS = 30_000;
 
 export function apiUrl(path: string): string {
   if (!path.startsWith('/')) {
@@ -33,18 +36,30 @@ export function isCrossOriginIAM(): boolean {
 export function markGatewayLoginStarted(): void {
   if (typeof window === 'undefined') return;
   try {
-    window.sessionStorage.setItem(LOGIN_PROBE_KEY, '1');
+    window.sessionStorage.setItem(GATEWAY_LOGIN_STARTED_AT_KEY, String(Date.now()));
   } catch {
     // Ignore unavailable storage, for example strict privacy modes.
   }
 }
 
-function hasGatewayLoginStarted(): boolean {
-  if (typeof window === 'undefined') return false;
+export function getGatewayLoginStartedAt(): number | null {
+  if (typeof window === 'undefined') return null;
   try {
-    return window.sessionStorage.getItem(LOGIN_PROBE_KEY) === '1';
+    const raw = window.sessionStorage.getItem(GATEWAY_LOGIN_STARTED_AT_KEY);
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
   } catch {
-    return false;
+    return null;
+  }
+}
+
+export function clearGatewayLoginStarted(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(GATEWAY_LOGIN_STARTED_AT_KEY);
+  } catch {
+    // Ignore unavailable storage, for example strict privacy modes.
   }
 }
 
@@ -53,12 +68,12 @@ function hasGatewayLoginStarted(): boolean {
  * already behind OIDC. In local cross-origin development, probing /me before the
  * user clicks Login triggers Envoy's OIDC redirect inside XHR, producing noisy
  * authorize requests whose state points to /v1/iam/me. Avoid that until a login
- * flow has been started explicitly.
+ * flow has returned to the frontend explicitly.
  */
 export function shouldProbePrincipal(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === 'undefined') return !IAM_URL;
   if (!isCrossOriginIAM()) return true;
-  return hasGatewayLoginStarted();
+  return isRecentGatewayLoginAttempt(readGatewayAuthReturnStartedAt());
 }
 
 export function buildGatewayLoginUrl(): string {
@@ -67,8 +82,45 @@ export function buildGatewayLoginUrl(): string {
   const target = loginUrl.startsWith('/') ? apiUrl(loginUrl) : loginUrl;
   if (typeof window === 'undefined') return target;
   const url = new URL(target, window.location.origin);
-  url.searchParams.set('return_to', window.location.href);
+  url.searchParams.set('return_to', buildGatewayReturnToUrl());
   return url.toString();
+}
+
+function buildGatewayReturnToUrl(): string {
+  const returnTo = new URL(window.location.href);
+  returnTo.searchParams.set(GATEWAY_AUTH_RETURN_PARAM, GATEWAY_AUTH_RETURN_VALUE);
+  returnTo.searchParams.set(GATEWAY_AUTH_TIME_PARAM, String(Date.now()));
+  return returnTo.toString();
+}
+
+export function consumeGatewayAuthReturn(): number | null {
+  if (typeof window === 'undefined') return null;
+  const url = new URL(window.location.href);
+  const isReturn = url.searchParams.get(GATEWAY_AUTH_RETURN_PARAM) === GATEWAY_AUTH_RETURN_VALUE;
+  const value = readGatewayAuthReturnStartedAt();
+
+  if (isReturn) {
+    url.searchParams.delete(GATEWAY_AUTH_RETURN_PARAM);
+    url.searchParams.delete(GATEWAY_AUTH_TIME_PARAM);
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }
+
+  if (!isReturn) return null;
+  return value || Date.now();
+}
+
+function readGatewayAuthReturnStartedAt(): number | null {
+  if (typeof window === 'undefined') return null;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get(GATEWAY_AUTH_RETURN_PARAM) !== GATEWAY_AUTH_RETURN_VALUE) return null;
+  const rawTime = url.searchParams.get(GATEWAY_AUTH_TIME_PARAM);
+  const value = Number(rawTime);
+  return Number.isFinite(value) ? value : null;
+}
+
+function isRecentGatewayLoginAttempt(startedAt: number | null): startedAt is number {
+  return startedAt !== null && Date.now() - startedAt < GATEWAY_LOGIN_CONFIRM_WINDOW_MS;
 }
 
 export function buildGatewayLogoutUrl(): string {

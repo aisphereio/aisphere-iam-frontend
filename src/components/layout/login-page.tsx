@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, type Variants } from 'framer-motion';
-import { Sparkles, LogIn, Shield } from 'lucide-react';
+import { AlertCircle, LoaderCircle, Sparkles, LogIn, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useT } from '@/lib/i18n';
@@ -28,8 +28,14 @@ const itemVariants: Variants = {
   },
 };
 
-export function LoginPage() {
+interface LoginPageProps {
+  state?: 'idle' | 'checking' | 'error';
+  message?: string;
+}
+
+export function LoginPage({ state = 'idle', message }: LoginPageProps) {
   const t = useT();
+  const isChecking = state === 'checking';
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
@@ -85,21 +91,28 @@ export function LoginPage() {
                 <div className="h-px flex-1 bg-border" />
               </div>
 
-              {/* Sign-in button */}
+              {state === 'error' && (
+                <div className="mb-4 flex w-full items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-left text-xs text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{message || t('login.sessionError')}</span>
+                </div>
+              )}
+
               <Button
                 size="lg"
                 className="h-11 w-full gap-2 text-base font-medium"
+                disabled={isChecking}
                 onClick={() => {
-                  window.location.href = buildGatewayLoginUrl();
+                  window.location.assign(buildGatewayLoginUrl());
                 }}
               >
-                <LogIn className="h-4 w-4" />
-                {t('login.casdoor')}
+                {isChecking ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                {isChecking ? t('login.completing') : t('login.casdoor')}
               </Button>
 
               {/* Note */}
               <p className="mt-3 text-xs text-muted-foreground/60">
-                {t('login.note')}
+                {isChecking ? t('login.completingNote') : t('login.note')}
               </p>
             </div>
           </Card>

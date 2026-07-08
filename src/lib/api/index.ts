@@ -28,6 +28,34 @@ function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   return request<T>(path, init);
 }
 
+function relationshipFilterBody(filter: {
+  resourceType?: string;
+  resourceId?: string;
+  relation?: string;
+  subjectType?: string;
+  subjectId?: string;
+  subjectRelation?: string;
+}) {
+  return {
+    resource_type: filter.resourceType,
+    resource_id: filter.resourceId,
+    relation: filter.relation,
+    subject_type: filter.subjectType,
+    subject_id: filter.subjectId,
+    subject_relation: filter.subjectRelation,
+  };
+}
+
+function checkPermissionBody(req: IamCheckPermissionRequest) {
+  return {
+    subject: req.subject,
+    resource: req.resource,
+    permission: req.permission,
+    org_id: req.orgId,
+    project_id: req.projectId,
+  };
+}
+
 /** IAM Auth Service
  *
  * Browser authentication is handled exclusively by Envoy Gateway OIDC.
@@ -166,19 +194,19 @@ export const iamAuthzAdminApi = {
   }) =>
     iamRequest<{ deleted: number; consistencyToken?: string }>('/v1/iam/authz/relationships:delete', {
       method: 'POST',
-      body: JSON.stringify({ filter }),
+      body: JSON.stringify({ filter: relationshipFilterBody(filter) }),
     }),
 
   checkPermission: (req: IamCheckPermissionRequest) =>
     iamRequest<IamCheckPermissionResponse>('/v1/iam/authz/permissions:check', {
       method: 'POST',
-      body: JSON.stringify(req),
+      body: JSON.stringify(checkPermissionBody(req)),
     }),
 
   explainPermission: (req: IamCheckPermissionRequest) =>
     iamRequest<IamCheckPermissionResponse>('/v1/iam/authz/permissions:explain', {
       method: 'POST',
-      body: JSON.stringify(req),
+      body: JSON.stringify(checkPermissionBody(req)),
     }),
 
   effectivePermissions: (params: {

@@ -91,22 +91,28 @@ export function Sidebar({
   onOpenProfile,
 }: SidebarProps) {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
   const t = useT();
-  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>(getDefaultOpenSections);
+const [openSections, setOpenSections] = React.useState<Record<string, boolean>>(getDefaultOpenSections);
+	  const isDark = mounted && theme === 'dark';
   const username = (principal?.subjectId || principal?.username || 'user') as string;
   const displayName = (principal?.displayName || principal?.name || username) as string;
   const avatar = (principal?.avatar || principal?.picture) as string | undefined;
   const initials = getInitials(displayName || username);
   const role = getRoleLabel(principal, t);
 
-  const toggleSection = (title: string) => {
-    setOpenSections((current) => ({
-      ...current,
-      [title]: !(current[title] ?? true),
-    }));
-  };
+const toggleSection = (title: string) => {
+	    setOpenSections((current) => ({
+	      ...current,
+	      [title]: !(current[title] ?? true),
+	    }));
+	  };
 
-  const showSectionItems = (title: string) => collapsed || (openSections[title] ?? true);
+	  const showSectionItems = (title: string) => collapsed || (openSections[title] ?? true);
+
+	  React.useEffect(() => {
+	    setMounted(true);
+	  }, []);
 
   return (
     <motion.aside
@@ -248,8 +254,8 @@ export function Sidebar({
           )}
           {!collapsed && (
             <div className="flex items-center gap-0.5">
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-                {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setTheme(isDark ? 'light' : 'dark')}>
+                {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
               </Button>
               <Button
                 variant="ghost"

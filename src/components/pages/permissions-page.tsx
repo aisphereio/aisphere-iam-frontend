@@ -193,6 +193,7 @@ export function PermissionsPage() {
     subject: { type: checkForm.subjectType, id: checkForm.subjectId },
     resource: { type: checkForm.resourceType, id: checkForm.resourceId },
     permission: checkForm.permission,
+    orgId: principal?.orgId || 'aisphere',
   };
 
   const handleCheck = async () => {
