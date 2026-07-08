@@ -1,13 +1,30 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { iamAuthzAdminApi } from '@/lib/api';
+import { iamAuthzAdminApi, iamGrantService, iamResourceService } from '@/lib/api';
 import type { IamCheckPermissionRequest, IamRelationship } from '@/lib/api/types';
 
 export function useIamAuthzSchema() {
   return useQuery({
     queryKey: ['iam', 'authz', 'schema'],
     queryFn: () => iamAuthzAdminApi.getSchema(),
+  });
+}
+
+export function useIamAuthzCatalog() {
+  return useQuery({
+    queryKey: ['iam', 'authz', 'catalog'],
+    queryFn: async () => {
+      const [resourceTypes, roleTemplates] = await Promise.all([
+        iamResourceService.listResourceTypes(),
+        iamGrantService.listRoleTemplates(),
+      ]);
+      return {
+        resourceTypes: resourceTypes.resourceTypes || [],
+        roleTemplates: roleTemplates.roleTemplates || [],
+      };
+    },
+    retry: 1,
   });
 }
 
