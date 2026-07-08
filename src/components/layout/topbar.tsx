@@ -3,7 +3,7 @@
 import React from 'react';
 import { Menu, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTheme } from 'next-themes';
 import { useT } from '@/lib/i18n';
 import { LanguageToggle } from './language-toggle';
@@ -27,6 +27,10 @@ const tabLabels: Record<string, string> = {
 };
 
 const identityTabs = new Set(['users', 'groups']);
+
+const identityOrgs = [
+  { value: 'aisphere', label: 'aisphere' },
+];
 
 export function Topbar({ activeTab, onMenuClick, identityOrg, onIdentityOrgChange }: TopbarProps) {
   const { theme, setTheme } = useTheme();
@@ -53,12 +57,16 @@ export function Topbar({ activeTab, onMenuClick, identityOrg, onIdentityOrgChang
         {identityTabs.has(activeTab) ? (
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">身份源</span>
-            <Input
-              value={identityOrg}
-              onChange={(e) => onIdentityOrgChange(e.target.value)}
-              placeholder="aisphere"
-              className="h-7 w-32 text-xs font-mono"
-            />
+            <Select value={identityOrg} onValueChange={onIdentityOrgChange}>
+              <SelectTrigger className="h-7 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {identityOrgs.map((org) => (
+                  <SelectItem key={org.value} value={org.value}>{org.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         ) : null}
         <LanguageToggle />
