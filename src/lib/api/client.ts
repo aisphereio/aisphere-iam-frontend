@@ -28,47 +28,26 @@ export function buildGatewayLogoutUrl(): string {
   return logoutUrl.startsWith('/') ? apiUrl(logoutUrl) : logoutUrl;
 }
 
-function redirectToGatewayLogin(): void {
-  if (typeof window === 'undefined') return;
-  const target = buildGatewayLoginUrl();
-  if (target && window.location.href !== target) {
-    window.location.href = target;
-  }
-}
-
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers || []);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  let res: Response;
-  try {
-    res = await fetch(apiUrl(path), {
-      ...init,
-      credentials: init.credentials || 'include',
-      redirect: init.redirect || 'manual',
-      headers,
-    });
-  } catch (e) {
-    // In cross-origin dev mode an unauthenticated API call may be redirected to
-    // Casdoor and fail CORS. Switch to top-level navigation so OIDC can complete.
-    redirectToGatewayLogin();
-    throw e;
-  }
+  const res = await fetch(apiUrl(path), {
+    ...init,
+    credentials: init.credentials || 'include',
+    redirect: init.redirect || 'manual',
+    headers,
+  });
 
   const contentType = res.headers.get('content-type') || '';
 
   if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-    redirectToGatewayLogin();
     throw new Error('Authentication required');
   }
 
   if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-      redirectToGatewayLogin();
-    }
-
     let msg = `${res.status} ${res.statusText}`;
     try {
       if (contentType.includes('json')) {
