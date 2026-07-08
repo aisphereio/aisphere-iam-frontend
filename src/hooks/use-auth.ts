@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { iamAuthApi } from '@/lib/api';
-import { buildGatewayLogoutUrl } from '@/lib/api/client';
+import { buildGatewayLogoutUrl, clearGatewaySessionConfirmed } from '@/lib/api/client';
 import type { IamPrincipal } from '@/lib/api/types';
 
 type GetMeReply = {
@@ -60,6 +60,7 @@ export function useMe(enabled = true) {
 /** Logout through the IAM backend logout endpoint. */
 export function useLogout() {
   return async () => {
+    clearGatewaySessionConfirmed();
     window.location.href = buildGatewayLogoutUrl();
   };
 }

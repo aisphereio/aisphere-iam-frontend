@@ -10,7 +10,9 @@ import type { Tab } from '@/lib/api/types';
 import { LoginPage } from './login-page';
 import {
   clearGatewayLoginStarted,
+  clearGatewaySessionConfirmed,
   consumeGatewayAuthReturn,
+  markGatewaySessionConfirmed,
   shouldProbePrincipal,
 } from '@/lib/api/client';
 
@@ -53,6 +55,7 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (!principal) return;
+    markGatewaySessionConfirmed();
     clearGatewayLoginStarted();
     setLoginStartedAt(null);
     setLoginConfirmExpired(false);
@@ -61,9 +64,15 @@ export function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     if (!loginStartedAt || !principalError || loginConfirmExpired) return;
     clearGatewayLoginStarted();
+    clearGatewaySessionConfirmed();
     setLoginConfirmExpired(true);
     setLoginStartedAt(null);
   }, [loginConfirmExpired, loginStartedAt, principalError]);
+
+  useEffect(() => {
+    if (!principalError || loginStartedAt) return;
+    clearGatewaySessionConfirmed();
+  }, [loginStartedAt, principalError]);
 
   if (!canProbePrincipal) {
     return (

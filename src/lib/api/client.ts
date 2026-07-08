@@ -7,6 +7,7 @@
  */
 export const IAM_URL: string = (process.env.NEXT_PUBLIC_IAM_URL || '').replace(/\/+$/, '');
 const GATEWAY_LOGIN_STARTED_AT_KEY = 'aisphere_iam_gateway_login_started_at';
+const GATEWAY_SESSION_CONFIRMED_KEY = 'aisphere_iam_gateway_session_confirmed';
 const GATEWAY_AUTH_RETURN_PARAM = 'iam_auth';
 const GATEWAY_AUTH_RETURN_VALUE = 'return';
 const GATEWAY_AUTH_TIME_PARAM = 'iam_auth_t';
@@ -63,17 +64,45 @@ export function clearGatewayLoginStarted(): void {
   }
 }
 
+export function markGatewaySessionConfirmed(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(GATEWAY_SESSION_CONFIRMED_KEY, '1');
+  } catch {
+    // Ignore unavailable storage, for example strict privacy modes.
+  }
+}
+
+export function clearGatewaySessionConfirmed(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(GATEWAY_SESSION_CONFIRMED_KEY);
+  } catch {
+    // Ignore unavailable storage, for example strict privacy modes.
+  }
+}
+
+function hasGatewaySessionConfirmed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(GATEWAY_SESSION_CONFIRMED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Same-origin Gateway hosting can always probe /me because the whole frontend is
  * already behind OIDC. In local cross-origin development, probing /me before the
  * user clicks Login triggers Envoy's OIDC redirect inside XHR, producing noisy
  * authorize requests whose state points to /v1/iam/me. Avoid that until a login
- * flow has returned to the frontend explicitly.
+ * flow has returned to the frontend or this tab has already confirmed a Gateway
+ * session.
  */
 export function shouldProbePrincipal(): boolean {
   if (typeof window === 'undefined') return !IAM_URL;
   if (!isCrossOriginIAM()) return true;
-  return isRecentGatewayLoginAttempt(readGatewayAuthReturnStartedAt());
+  return hasGatewaySessionConfirmed() || isRecentGatewayLoginAttempt(readGatewayAuthReturnStartedAt());
 }
 
 export function buildGatewayLoginUrl(): string {
