@@ -42,21 +42,11 @@ export const iamAuthApi = {
   logoutUrl: () => Promise.resolve('/v1/iam/logout'),
 };
 
-/** IAM Directory Service
- *
- * Users are treated as external Casdoor users. The frontend is read-only and
- * does not create, update, disable, or delete identity-provider users.
- *
- * Casdoor organizations are displayed as read-only availability zones. Groups
- * are managed below a selected zone; the zone itself is never selectable as a
- * group and cannot be created from the IAM frontend.
- */
+/** IAM Directory Service */
 export const iamDirectoryApi = {
-  /** Get a user by org and user id */
   getUser: (orgId: string, userId: string) =>
     iamRequest<IamUser>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/users/${encodeURIComponent(userId)}`),
 
-  /** List external users in a Casdoor organization */
   listUsers: (
     orgId: string,
     params?: { query?: string; groupId?: string; role?: string; pageSize?: number; pageToken?: string },
@@ -73,11 +63,9 @@ export const iamDirectoryApi = {
     );
   },
 
-  /** Get organization / availability zone */
   getOrganization: (orgId: string) =>
     iamRequest<IamOrganization>(`/v1/iam/orgs/${encodeURIComponent(orgId)}`),
 
-  /** List groups in an availability zone */
   listGroups: (orgId: string, params?: { parentId?: string; type?: string; userId?: string }) => {
     const q = toQuery({
       parent_id: params?.parentId,
@@ -87,21 +75,18 @@ export const iamDirectoryApi = {
     return iamRequest<{ groups: IamGroup[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups${q ? `?${q}` : ''}`);
   },
 
-  /** Create a group below the read-only availability-zone root or another group. */
   createGroup: (orgId: string, group: { parentId?: string; name: string; displayName?: string; type?: string }) =>
     iamRequest<IamGroup>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`, {
       method: 'POST',
       body: JSON.stringify(group),
     }),
 
-  /** Update an existing group. */
   updateGroup: (orgId: string, groupId: string, group: { parentId?: string; name?: string; displayName?: string; type?: string }) =>
     iamRequest<IamGroup>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}`, {
       method: 'PATCH',
       body: JSON.stringify(group),
     }),
 
-  /** Delete an existing group. Availability-zone roots cannot be deleted here. */
   deleteGroup: (orgId: string, groupId: string, recursive = false) =>
     iamRequest<{ success: boolean }>(
       `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}${recursive ? '?recursive=true' : ''}`,
@@ -111,21 +96,18 @@ export const iamDirectoryApi = {
 
 /** IAM Permission Service */
 export const iamPermissionApi = {
-  /** Check permission */
   check: (req: IamCheckPermissionRequest) =>
     iamRequest<IamCheckPermissionResponse>('/v1/iam/permissions/check', {
       method: 'POST',
       body: JSON.stringify(req),
     }),
 
-  /** Write relationship */
   writeRelationship: (relationship: IamRelationship) =>
     iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships', {
       method: 'POST',
       body: JSON.stringify(relationship),
     }),
 
-  /** Delete relationship */
   deleteRelationship: (relationship: IamRelationship) =>
     iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships/delete', {
       method: 'POST',
@@ -171,7 +153,7 @@ export const iamAuthzAdminApi = {
   writeRelationship: (relationship: IamRelationship) =>
     iamRequest<{ written: number; consistencyToken?: string }>('/v1/iam/authz/relationships', {
       method: 'POST',
-      body: JSON.stringify({ relationship }),
+      body: JSON.stringify({ relationships: [relationship] }),
     }),
 
   deleteRelationships: (filter: {
@@ -221,87 +203,72 @@ export const iamAuthzAdminApi = {
 
 /** IAM Project Service (Control Plane) */
 export const iamProjectApi = {
-  /** Create organization */
   createOrganization: (org: { slug: string; displayName?: string; casdoorOrg?: string }) =>
     iamRequest<IamCpOrganization>('/v1/iam/control-plane/orgs', {
       method: 'POST',
       body: JSON.stringify(org),
     }),
 
-  /** Get organization */
   getOrganization: (orgId: string) =>
     iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`),
 
-  /** List organizations */
   listOrganizations: () =>
     iamRequest<{ organizations: IamCpOrganization[] }>('/v1/iam/control-plane/orgs'),
 
-  /** Update organization */
   updateOrganization: (orgId: string, org: Partial<IamCpOrganization>) =>
     iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`, {
       method: 'PATCH',
       body: JSON.stringify(org),
     }),
 
-  /** Archive organization */
   archiveOrganization: (orgId: string) =>
     iamRequest<{ success: boolean }>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}/archive`, {
       method: 'POST',
     }),
 
-  /** Create project */
   createProject: (orgId: string, project: { slug: string; displayName?: string; description?: string }) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}/projects`, {
       method: 'POST',
       body: JSON.stringify(project),
     }),
 
-  /** Get project */
   getProject: (projectId: string) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`),
 
-  /** List projects */
   listProjects: () =>
     iamRequest<{ projects: IamProject[] }>('/v1/iam/control-plane/projects'),
 
-  /** Update project */
   updateProject: (projectId: string, project: Partial<IamProject>) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
       body: JSON.stringify(project),
     }),
 
-  /** Archive project */
   archiveProject: (projectId: string) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/archive`, {
       method: 'POST',
     }),
 
-  /** List capabilities */
   listCapabilities: () =>
     iamRequest<{ capabilities: IamCapability[] }>('/v1/iam/control-plane/capabilities'),
 
-  /** Register capability */
   registerCapability: (capability: { name: string; displayName?: string; ownerService?: string }) =>
     iamRequest<IamCapability>('/v1/iam/control-plane/capabilities', {
       method: 'POST',
       body: JSON.stringify({ capability }),
     }),
 
-  /** List project capabilities */
   listProjectCapabilities: (projectId: string) =>
     iamRequest<{ capabilities: IamProjectCapability[] }>(
       `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities`,
     ),
 
-  /** Enable project capability */
   enableProjectCapability: (projectId: string, capabilityId: string) =>
     iamRequest<IamProjectCapability>(
       `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:enable`,
       { method: 'POST' },
     ),
 
-  /** Disable project capability */
   disableProjectCapability: (projectId: string, capabilityId: string) =>
     iamRequest<IamProjectCapability>(
       `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:disable`,
@@ -311,34 +278,28 @@ export const iamProjectApi = {
 
 /** IAM Resource Service */
 export const iamResourceService = {
-  /** Register resource type */
   registerResourceType: (rt: { type: string; displayName?: string; description?: string }) =>
     iamRequest<IamResourceType>('/v1/iam/control-plane/resource-types', {
       method: 'POST',
       body: JSON.stringify({ resourceType: rt }),
     }),
 
-  /** Get resource type */
   getResourceType: (type: string) =>
     iamRequest<IamResourceType>(`/v1/iam/control-plane/resource-types/${encodeURIComponent(type)}`),
 
-  /** List resource types */
   listResourceTypes: () =>
     iamRequest<{ resourceTypes: IamResourceType[] }>('/v1/iam/control-plane/resource-types'),
 
-  /** List resources */
   listResources: (params?: { type?: string; orgId?: string; projectId?: string }) =>
     iamRequest<{ resources: IamResource[] }>(
       `/v1/iam/control-plane/resources${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
     ),
 
-  /** Get resource */
   getResource: (resourceType: string, resourceId: string) =>
     iamRequest<IamResource>(
       `/v1/iam/control-plane/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}`,
     ),
 
-  /** List resource bindings */
   listResourceBindings: (params?: { resourceType?: string; resourceId?: string }) =>
     iamRequest<{ bindings: IamResourceBinding[] }>(
       `/v1/iam/control-plane/resource-bindings${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
@@ -347,18 +308,15 @@ export const iamResourceService = {
 
 /** IAM Grant Service */
 export const iamGrantService = {
-  /** Register role template */
   registerRoleTemplate: (rt: { resourceType?: string; roleKey: string; displayName?: string; description?: string }) =>
     iamRequest<IamRoleTemplate>('/v1/iam/control-plane/role-templates', {
       method: 'POST',
       body: JSON.stringify({ roleTemplate: rt }),
     }),
 
-  /** List role templates */
   listRoleTemplates: () =>
     iamRequest<{ roleTemplates: IamRoleTemplate[] }>('/v1/iam/control-plane/role-templates'),
 
-  /** Grant access */
   grantAccess: (grant: {
     resource?: { type: string; id: string };
     roleKey?: string;
@@ -370,22 +328,17 @@ export const iamGrantService = {
       body: JSON.stringify(grant),
     }),
 
-  /** Revoke access */
   revokeAccess: (grantId: string) =>
     iamRequest<{ grantId: string; revoked: boolean; consistencyToken?: string }>(
       `/v1/iam/control-plane/grants/${encodeURIComponent(grantId)}/revoke`,
-      {
-        method: 'POST',
-      },
+      { method: 'POST' },
     ),
 
-  /** List grants */
   listGrants: (params?: { resourceType?: string; resourceId?: string; subjectType?: string; subjectId?: string }) =>
     iamRequest<{ grants: IamGrant[] }>(
       `/v1/iam/control-plane/grants${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
     ),
 
-  /** Explain access */
   explainAccess: (params: { resource: { type: string; id: string }; permission: string; subject: { type: string; id: string } }) =>
     iamRequest<{ allowed: boolean; steps: unknown[] }>('/v1/iam/control-plane/access:explain', {
       method: 'POST',
