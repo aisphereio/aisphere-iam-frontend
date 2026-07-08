@@ -1,41 +1,66 @@
-const DEFAULT_IAM_URL = 'http://127.0.0.1:18080';
-
 /**
- * IAM upstream used by Next.js rewrites in local/dev deployments.
+ * API base for browser-side IAM requests.
  *
- * Browser-side API calls intentionally use relative paths. In production the
- * frontend and IAM API should be exposed by the same Envoy Gateway host, for
- * example:
+ * Recommended production deployment is same-origin through Envoy Gateway:
+ *   https://iam.weagent.cc/        -> iam frontend
+ *   https://iam.weagent.cc/v1/iam -> aisphere-iam
  *
- *   https://iam.weagent.cc:30723/        -> iam-front
- *   https://iam.weagent.cc:30723/v1/iam -> aisphere-iam
+ * In that mode leave NEXT_PUBLIC_IAM_URL empty and requests use relative paths.
+ * For local development without a Next.js proxy, set NEXT_PUBLIC_IAM_URL to the
+ * Gateway/IAM origin, for example https://iam.weagent.cc:30723.
  */
-export const IAM_URL: string = (process.env.NEXT_PUBLIC_IAM_URL || DEFAULT_IAM_URL).replace(/\/+$/, '');
+export const IAM_URL: string = (process.env.NEXT_PUBLIC_IAM_URL || '').replace(/\/+$/, '');
 
-export function buildGatewayLogoutUrl(): string {
-  return process.env.NEXT_PUBLIC_GATEWAY_LOGOUT_URL || '/v1/iam/logout';
+export function buildGatewayLoginUrl(): string {
+  return process.env.NEXT_PUBLIC_GATEWAY_LOGIN_URL || `${IAM_URL || ''}/` || '/';
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export function buildGatewayLogoutUrl(): string {
+  return process.env.NEXT_PUBLIC_GATEWAY_LOGOUT_URL || `${IAM_URL || ''}/v1/iam/logout` || '/v1/iam/logout';
+}
+
+function apiURL(path: string): string {
   if (!path.startsWith('/')) {
     throw new Error(`IAM request path must be relative: ${path}`);
   }
+  return IAM_URL ? `${IAM_URL}${path}` : path;
+}
 
+function redirectToGatewayLogin(): void {
+  if (typeof window === 'undefined') return;
+  const target = buildGatewayLoginUrl();
+  if (target && window.location.href !== target) {
+    window.location.href = target;
+  }
+}
+
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers || []);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(path, {
-    ...init,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiURL(path), {
+      ...init,
+      headers,
+      credentials: 'include',
+    });
+  } catch (e) {
+    // In cross-origin dev mode an unauthenticated API call may be redirected to
+    // Casdoor and fail CORS. Switch to top-level navigation so OIDC can complete.
+    if (typeof window !== 'undefined') {
+      redirectToGatewayLogin();
+    }
+    throw e;
+  }
 
   const contentType = res.headers.get('content-type') || '';
 
   if (!res.ok) {
     if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
-      window.location.href = '/';
+      redirectToGatewayLogin();
     }
 
     let msg = `${res.status} ${res.statusText}`;
