@@ -17,15 +17,17 @@ function unwrapPrincipal(value: IamPrincipal | GetMeReply): IamPrincipal {
 /**
  * Fetch the current user principal.
  *
- * Envoy Gateway owns the OIDC browser session. If the user is not authenticated,
- * Gateway redirects before the request reaches the frontend or IAM backend.
+ * Same-origin Gateway deployments can probe immediately. Local cross-origin
+ * development should pass enabled=false until the user explicitly starts login,
+ * otherwise Envoy OIDC redirects are triggered inside XHR requests to /me.
  */
-export function useMe() {
+export function useMe(enabled = true) {
   return useQuery({
     queryKey: ['iam', 'me'],
     queryFn: async () => unwrapPrincipal(await iamAuthApi.getMe()),
     retry: 1,
     staleTime: 30_000,
+    enabled,
   });
 }
 
