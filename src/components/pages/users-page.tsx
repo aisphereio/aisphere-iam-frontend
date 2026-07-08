@@ -82,7 +82,7 @@ export function ExternalUsersPage() {
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[220px_1fr]">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Casdoor Organization</label>
+              <label className="text-xs font-medium text-muted-foreground">用户源</label>
               <Input
                 value={orgId}
                 onChange={(e) => setOrgId(e.target.value)}
@@ -121,7 +121,7 @@ export function ExternalUsersPage() {
                 <TableHead className="text-xs">显示名</TableHead>
                 <TableHead className="text-xs">邮箱</TableHead>
                 <TableHead className="text-xs">外部 ID</TableHead>
-                <TableHead className="text-xs">组织</TableHead>
+                <TableHead className="text-xs">用户源</TableHead>
                 <TableHead className="text-xs">角色</TableHead>
                 <TableHead className="text-xs">组</TableHead>
                 <TableHead className="text-xs">状态</TableHead>
