@@ -222,6 +222,19 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     });
   };
 
+  const expandAll = () => {
+    const all = new Set<string>();
+    for (const group of groups) {
+      const id = groupID(group);
+      if (id && childrenMap.has(id)) all.add(id);
+    }
+    setExpandedIds(all);
+  };
+
+  const collapseAll = () => {
+    setExpandedIds(new Set());
+  };
+
   const resetForm = () => {
     setForm(emptyForm);
     setEditing(false);
@@ -354,6 +367,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                 <span className="truncate">{rootLabel}</span>
                 <Badge variant="secondary" className="ml-auto text-[9px]">用户源</Badge>
               </button>
+              {groups.length > 0 ? (
+                <div className="flex items-center gap-1 mb-1 px-1">
+                  <button onClick={expandAll} className="text-[10px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-accent/60">展开全部</button>
+                  <span className="text-[10px] text-muted-foreground">/</span>
+                  <button onClick={collapseAll} className="text-[10px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-accent/60">折叠全部</button>
+                </div>
+              ) : null}
               {isLoading ? (
                 <div className="space-y-2 p-2">
                   <Skeleton className="h-4 w-full" />
