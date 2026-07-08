@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  Users, Shield, Folder, Key, Database, LogOut, Moon, Sun, Sparkles,
+  Users, Shield, Folder, Key, Database, LogOut, Moon, Sun, Sparkles, GitBranch,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,6 +18,7 @@ import type { Tab } from '@/lib/api/types';
 
 const navItems: { key: Tab; labelKey: string; hintKey: string; icon: React.ReactNode }[] = [
   { key: 'users', labelKey: 'nav.users', hintKey: 'nav.users.hint', icon: <Users className="h-4 w-4" /> },
+  { key: 'groups', labelKey: 'nav.groups', hintKey: 'nav.groups.hint', icon: <GitBranch className="h-4 w-4" /> },
   { key: 'organizations', labelKey: 'nav.organizations', hintKey: 'nav.organizations.hint', icon: <Shield className="h-4 w-4" /> },
   { key: 'projects', labelKey: 'nav.projects', hintKey: 'nav.projects.hint', icon: <Folder className="h-4 w-4" /> },
   { key: 'grants', labelKey: 'nav.grants', hintKey: 'nav.grants.hint', icon: <Key className="h-4 w-4" /> },
