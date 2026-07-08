@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Database, GitBranch, KeyRound, Layers3, ListChecks, RefreshCw, Route, ShieldCheck, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -465,7 +465,7 @@ function ModelOverview({ stats, activeRelationshipCount, schemaVersion }: { stat
   );
 }
 
-function MetricCard({ icon, label, value, helper }: { icon: React.ReactNode; label: string; value: number; helper: string }) {
+function MetricCard({ icon, label, value, helper }: { icon: ReactNode; label: string; value: number; helper: string }) {
   return (
     <Card>
       <CardContent className="p-3">
