@@ -39,11 +39,38 @@ export function useIamDirectoryOrganization(orgId: string) {
   });
 }
 
-export function useIamDirectoryGroups(orgId: string) {
+export function useIamDirectoryGroups(orgId: string, params?: { parentId?: string; type?: string; userId?: string }) {
   return useQuery({
-    queryKey: ['iam', 'directory-groups', orgId],
-    queryFn: () => iamDirectoryApi.listGroups(orgId),
+    queryKey: ['iam', 'directory-groups', orgId, params],
+    queryFn: () => iamDirectoryApi.listGroups(orgId, params),
     enabled: Boolean(orgId),
+  });
+}
+
+export function useIamCreateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { orgId: string; parentId?: string; name: string; displayName?: string; type?: string }) =>
+      iamDirectoryApi.createGroup(params.orgId, params),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['iam', 'directory-groups', vars.orgId] }),
+  });
+}
+
+export function useIamUpdateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { orgId: string; groupId: string; parentId?: string; name?: string; displayName?: string; type?: string }) =>
+      iamDirectoryApi.updateGroup(params.orgId, params.groupId, params),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['iam', 'directory-groups', vars.orgId] }),
+  });
+}
+
+export function useIamDeleteGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { orgId: string; groupId: string; recursive?: boolean }) =>
+      iamDirectoryApi.deleteGroup(params.orgId, params.groupId, Boolean(params.recursive)),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['iam', 'directory-groups', vars.orgId] }),
   });
 }
 
