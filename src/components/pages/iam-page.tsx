@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   Building2, Folder, KeyRound, ShieldCheck, Database,
-  Search,
+  Search, Plus, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import {
   useIamOrganizations,
   useIamCreateOrganization,
@@ -63,7 +64,7 @@ export function IamPage({ tab }: { tab: Tab }) {
     case 'resources':
       return <ResourcesTab />;
     default:
-      return <LocalUsersTab />;
+      return <ExternalUsersPage />;
   }
 }
 

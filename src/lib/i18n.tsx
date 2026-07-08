@@ -129,7 +129,6 @@ const enDict: Dict = {
 	  'users.active': 'Active',
 
   'orgs.title': 'Organizations',
-  'orgs.create': 'Create Organization',
   'orgs.search': 'Search organizations...',
   'orgs.slug': 'Slug',
   'orgs.displayName': 'Display Name',
@@ -154,7 +153,6 @@ const enDict: Dict = {
 
   'projects.title': 'Projects',
   'projects.search': 'Search projects...',
-  'projects.create': 'Create Project',
   'projects.slug': 'Slug',
   'projects.displayName': 'Display Name',
   'projects.org': 'Org',
@@ -347,7 +345,6 @@ const zhDict: Dict = {
 	  'users.active': '活跃',
 
   'orgs.title': '组织',
-  'orgs.create': '创建组织',
   'orgs.search': '搜索组织...',
   'orgs.slug': '标识',
   'orgs.displayName': '显示名称',
@@ -372,7 +369,6 @@ const zhDict: Dict = {
 
   'projects.title': '项目',
   'projects.search': '搜索项目...',
-  'projects.create': '创建项目',
   'projects.slug': '标识',
   'projects.displayName': '显示名称',
   'projects.org': '组织',

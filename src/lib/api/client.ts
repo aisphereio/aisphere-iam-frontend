@@ -1,29 +1,31 @@
 /**
  * API base for browser-side IAM requests.
  *
- * Recommended production deployment is same-origin through Envoy Gateway:
- *   https://iam.weagent.cc/        -> iam frontend
- *   https://iam.weagent.cc/v1/iam -> aisphere-iam
- *
- * In that mode leave NEXT_PUBLIC_IAM_URL empty and requests use relative paths.
- * For local development without a Next.js proxy, set NEXT_PUBLIC_IAM_URL to the
- * Gateway/IAM origin, for example https://iam.weagent.cc:30723.
+ * In production this can be left empty for same-origin Envoy Gateway hosting.
+ * In local development set NEXT_PUBLIC_IAM_URL to the Gateway/IAM origin, for
+ * example https://api.weagent.cc:30723.
  */
 export const IAM_URL: string = (process.env.NEXT_PUBLIC_IAM_URL || '').replace(/\/+$/, '');
 
-export function buildGatewayLoginUrl(): string {
-  return process.env.NEXT_PUBLIC_GATEWAY_LOGIN_URL || `${IAM_URL || ''}/` || '/';
-}
-
-export function buildGatewayLogoutUrl(): string {
-  return process.env.NEXT_PUBLIC_GATEWAY_LOGOUT_URL || `${IAM_URL || ''}/v1/iam/logout` || '/v1/iam/logout';
-}
-
-function apiURL(path: string): string {
+export function apiUrl(path: string): string {
   if (!path.startsWith('/')) {
     throw new Error(`IAM request path must be relative: ${path}`);
   }
   return IAM_URL ? `${IAM_URL}${path}` : path;
+}
+
+export function buildGatewayLoginUrl(): string {
+  const loginUrl = process.env.NEXT_PUBLIC_GATEWAY_LOGIN_URL || '/v1/iam/ui/login';
+  const target = loginUrl.startsWith('/') ? apiUrl(loginUrl) : loginUrl;
+  if (typeof window === 'undefined') return target;
+  const url = new URL(target, window.location.origin);
+  url.searchParams.set('return_to', window.location.href);
+  return url.toString();
+}
+
+export function buildGatewayLogoutUrl(): string {
+  const logoutUrl = process.env.NEXT_PUBLIC_GATEWAY_LOGOUT_URL || '/v1/iam/logout';
+  return logoutUrl.startsWith('/') ? apiUrl(logoutUrl) : logoutUrl;
 }
 
 function redirectToGatewayLogin(): void {
@@ -42,24 +44,28 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
   let res: Response;
   try {
-    res = await fetch(apiURL(path), {
+    res = await fetch(apiUrl(path), {
       ...init,
+      credentials: init.credentials || 'include',
+      redirect: init.redirect || 'manual',
       headers,
-      credentials: 'include',
     });
   } catch (e) {
     // In cross-origin dev mode an unauthenticated API call may be redirected to
     // Casdoor and fail CORS. Switch to top-level navigation so OIDC can complete.
-    if (typeof window !== 'undefined') {
-      redirectToGatewayLogin();
-    }
+    redirectToGatewayLogin();
     throw e;
   }
 
   const contentType = res.headers.get('content-type') || '';
 
+  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+    redirectToGatewayLogin();
+    throw new Error('Authentication required');
+  }
+
   if (!res.ok) {
-    if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
+    if (res.status === 401 || res.status === 403) {
       redirectToGatewayLogin();
     }
 

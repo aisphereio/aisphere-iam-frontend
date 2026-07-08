@@ -15,6 +15,7 @@ interface TopbarProps {
 
 const tabLabels: Record<Tab, string> = {
   users: 'nav.users',
+  groups: 'nav.groups',
   organizations: 'nav.organizations',
   projects: 'nav.projects',
   grants: 'nav.grants',

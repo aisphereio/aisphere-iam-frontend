@@ -29,7 +29,7 @@ export function useMe() {
   });
 }
 
-/** Logout through the Gateway OIDC logout endpoint. */
+/** Logout through the IAM backend logout endpoint. */
 export function useLogout() {
   return async () => {
     window.location.href = buildGatewayLogoutUrl();

@@ -32,10 +32,10 @@ function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
  * refresh access tokens, or persist token sets.
  */
 export const iamAuthApi = {
-  /** Get current user principal restored by Kernel from Gateway claim headers. */
+  /** Get current user principal from the IAM backend. */
   getMe: () => iamRequest<IamPrincipal>('/v1/iam/me'),
 
-  /** Gateway logout endpoint configured in Envoy Gateway SecurityPolicy. */
+  /** IAM backend logout endpoint. */
   logoutUrl: () => Promise.resolve('/v1/iam/logout'),
 };
 
@@ -178,14 +178,14 @@ export const iamProjectApi = {
   /** Update project */
   updateProject: (projectId: string, project: Partial<IamProject>) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(project),
     }),
 
   /** Archive project */
   archiveProject: (projectId: string) =>
-    iamRequest<{ success: boolean }>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`, {
-      method: 'DELETE',
+    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/archive`, {
+      method: 'POST',
     }),
 
   /** List capabilities */
@@ -196,7 +196,7 @@ export const iamProjectApi = {
   registerCapability: (capability: { name: string; displayName?: string; ownerService?: string }) =>
     iamRequest<IamCapability>('/v1/iam/control-plane/capabilities', {
       method: 'POST',
-      body: JSON.stringify(capability),
+      body: JSON.stringify({ capability }),
     }),
 
   /** List project capabilities */
@@ -207,15 +207,15 @@ export const iamProjectApi = {
 
   /** Enable project capability */
   enableProjectCapability: (projectId: string, capabilityId: string) =>
-    iamRequest<{ success: boolean }>(
-      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}/enable`,
+    iamRequest<IamProjectCapability>(
+      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:enable`,
       { method: 'POST' },
     ),
 
   /** Disable project capability */
   disableProjectCapability: (projectId: string, capabilityId: string) =>
-    iamRequest<{ success: boolean }>(
-      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}/disable`,
+    iamRequest<IamProjectCapability>(
+      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:disable`,
       { method: 'POST' },
     ),
 };
@@ -226,7 +226,7 @@ export const iamResourceService = {
   registerResourceType: (rt: { type: string; displayName?: string; description?: string }) =>
     iamRequest<IamResourceType>('/v1/iam/control-plane/resource-types', {
       method: 'POST',
-      body: JSON.stringify(rt),
+      body: JSON.stringify({ resourceType: rt }),
     }),
 
   /** Get resource type */
@@ -262,7 +262,7 @@ export const iamGrantService = {
   registerRoleTemplate: (rt: { resourceType?: string; roleKey: string; displayName?: string; description?: string }) =>
     iamRequest<IamRoleTemplate>('/v1/iam/control-plane/role-templates', {
       method: 'POST',
-      body: JSON.stringify(rt),
+      body: JSON.stringify({ roleTemplate: rt }),
     }),
 
   /** List role templates */
@@ -283,9 +283,12 @@ export const iamGrantService = {
 
   /** Revoke access */
   revokeAccess: (grantId: string) =>
-    iamRequest<{ success: boolean }>(`/v1/iam/control-plane/grants/${encodeURIComponent(grantId)}`, {
-      method: 'DELETE',
-    }),
+    iamRequest<{ grantId: string; revoked: boolean; consistencyToken?: string }>(
+      `/v1/iam/control-plane/grants/${encodeURIComponent(grantId)}/revoke`,
+      {
+        method: 'POST',
+      },
+    ),
 
   /** List grants */
   listGrants: (params?: { resourceType?: string; resourceId?: string; subjectType?: string; subjectId?: string }) =>
@@ -294,8 +297,8 @@ export const iamGrantService = {
     ),
 
   /** Explain access */
-  explainAccess: (params: { resource: { type: string; id: string }; subject: { type: string; id: string } }) =>
-    iamRequest<{ grants: IamGrant[] }>('/v1/iam/control-plane/grants/explain', {
+  explainAccess: (params: { resource: { type: string; id: string }; permission: string; subject: { type: string; id: string } }) =>
+    iamRequest<{ allowed: boolean; steps: unknown[] }>('/v1/iam/control-plane/access:explain', {
       method: 'POST',
       body: JSON.stringify(params),
     }),

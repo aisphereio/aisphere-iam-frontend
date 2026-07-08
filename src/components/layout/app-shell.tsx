@@ -7,6 +7,7 @@ import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { useMe, useLogout } from '@/hooks/use-auth';
 import type { Tab } from '@/lib/api/types';
+import { LoginPage } from './login-page';
 
 interface AppShellProps {
   children: (tab: Tab) => React.ReactNode;
@@ -21,8 +22,16 @@ export function AppShell({ children }: AppShellProps) {
   // If the user is not authenticated, the Gateway redirects to Casdoor
   // before the request reaches the frontend. So we always assume the user
   // is authenticated when the page loads.
-  const { data: principal } = useMe();
+  const { data: principal, error: principalError } = useMe();
   const logout = useLogout();
+
+  if (principalError) {
+    return (
+      <TooltipProvider>
+        <LoginPage />
+      </TooltipProvider>
+    );
+  }
 
   return (
     <TooltipProvider>
