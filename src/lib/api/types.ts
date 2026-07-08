@@ -43,7 +43,7 @@ export interface IamUser {
   enabled?: boolean;
 }
 
-/** IAM Directory Organization */
+/** IAM Directory Organization. In the frontend this is displayed as a read-only availability zone. */
 export interface IamOrganization {
   id: string;
   externalId?: string;
@@ -185,14 +185,11 @@ export interface IamResource {
 /** IAM Resource Binding */
 export interface IamResourceBinding {
   id: string;
-  source: IamResourceRef;
-  relation: string;
-  target: IamResourceRef;
+  resource?: IamResourceRef;
+  ownerService?: string;
+  ownerResourceId?: string;
   status?: string;
-  metadata?: Record<string, string>;
-  createdBy?: string;
   createdAt?: string;
-  updatedAt?: string;
 }
 
 /** IAM Role Template */
@@ -204,19 +201,14 @@ export interface IamRoleTemplate {
   description?: string;
   relation?: string;
   builtIn?: boolean;
-  enabled?: boolean;
-  sortOrder?: number;
-  metadata?: Record<string, string>;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 /** IAM Grant */
 export interface IamGrant {
   id: string;
   resource?: IamResourceRef;
-  roleKey?: string;
   relation?: string;
+  roleKey?: string;
   subject?: { type: string; id: string; relation?: string };
   source?: string;
   reason?: string;
@@ -270,4 +262,4 @@ export type LocalUser = {
   disabled?: boolean;
 };
 
-export type Tab = 'users' | 'organizations' | 'projects' | 'grants' | 'resources';
+export type Tab = 'users' | 'groups' | 'organizations' | 'projects' | 'grants' | 'resources';
