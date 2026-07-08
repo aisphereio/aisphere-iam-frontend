@@ -14,13 +14,13 @@ import { useMe } from '@/hooks/use-auth';
 import { useIamAssignUserToGroup, useIamCreateGroup, useIamDeleteGroup, useIamDirectoryGroups, useIamDirectoryOrganization, useIamExternalUsers, useIamRemoveUserFromGroup, useIamUpdateGroup } from '@/hooks/use-iam';
 import type { IamGroup, IamPrincipal, IamUser } from '@/lib/api/types';
 
-type GroupForm = {
+type OrganizationForm = {
   name: string;
   displayName: string;
   type: string;
 };
 
-const emptyForm: GroupForm = { name: '', displayName: '', type: 'Virtual' };
+const emptyForm: OrganizationForm = { name: '', displayName: '', type: 'Physical' };
 
 function defaultZoneFromPrincipal(principal?: IamPrincipal): string {
   const candidates = [
@@ -56,10 +56,19 @@ function groupLabel(group?: IamGroup | null): string {
   return group.displayName || group.name || group.id;
 }
 
-function buildChildrenMap(groups: IamGroup[], orgId: string): Map<string, IamGroup[]> {
+function parentKey(group: IamGroup, userSourceId: string): string {
+  const parent = group.parentId?.trim();
+  return (!parent || parent === userSourceId) ? '' : parent;
+}
+
+function isTopLevelOrganization(group: IamGroup, userSourceId: string): boolean {
+  return parentKey(group, userSourceId) === '';
+}
+
+function buildChildrenMap(groups: IamGroup[], userSourceId: string): Map<string, IamGroup[]> {
   const map = new Map<string, IamGroup[]>();
   for (const group of groups) {
-    const parent = (!group.parentId || group.parentId === orgId) ? '' : group.parentId;
+    const parent = parentKey(group, userSourceId);
     const bucket = map.get(parent) || [];
     bucket.push(group);
     map.set(parent, bucket);
@@ -171,7 +180,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const { data: me } = useMe();
   const [selectedGroup, setSelectedGroup] = useState<IamGroup | null>(null);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [form, setForm] = useState<GroupForm>(emptyForm);
+  const [form, setForm] = useState<OrganizationForm>(emptyForm);
   const [editing, setEditing] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -194,7 +203,8 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const childGroups = selectedId ? (childrenMap.get(selectedId) || []) : rootGroups;
   const rootLabel = zone?.displayName || zone?.name || zoneId;
   const selectedPath = buildGroupPath(selectedGroup, groupMap, rootLabel);
-  const nestedGroupCount = groups.filter((group) => group.parentId && group.parentId !== zoneId).length;
+  const topLevelOrganizationCount = groups.filter((group) => isTopLevelOrganization(group, zoneId)).length;
+  const childOrganizationCount = groups.length - topLevelOrganizationCount;
   const allUsers = allUsersData?.users || [];
   const selectedGroupUsers = selectedGroup ? (selectedGroupUsersData?.users || []) : [];
   const selectedGroupUserIds = new Set(selectedGroupUsers.map(userID).filter(Boolean));
@@ -226,13 +236,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const handleSelect = (group: IamGroup) => {
     setSelectedGroup(group);
     setSelectedUserId('');
-    setForm({ name: group.name || '', displayName: group.displayName || '', type: group.type || 'Virtual' });
+    setForm({ name: group.name || '', displayName: group.displayName || '', type: group.type || 'Physical' });
     setEditing(false);
   };
 
   const handleCreate = async () => {
     if (!form.name.trim()) {
-      toast.error('组织/用户组名称不能为空');
+      toast.error('组织名称不能为空');
       return;
     }
     try {
@@ -241,20 +251,20 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         parentId: selectedGroup ? groupID(selectedGroup) : undefined,
         name: form.name.trim(),
         displayName: form.displayName.trim() || undefined,
-        type: form.type.trim() || 'Virtual',
+        type: form.type.trim() || 'Physical',
       });
-      toast.success(selectedGroup ? '子组织/用户组已创建' : '一级组织/用户组已创建');
+      toast.success(selectedGroup ? '子组织已创建' : '顶级组织已创建');
       resetForm();
       await refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '创建组织/用户组失败');
+      toast.error(e instanceof Error ? e.message : '创建组织失败');
     }
   };
 
   const handleUpdate = async () => {
     if (!selectedGroup) return;
     if (!form.name.trim()) {
-      toast.error('组织/用户组名称不能为空');
+      toast.error('组织名称不能为空');
       return;
     }
     try {
@@ -264,13 +274,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         parentId: selectedGroup.parentId || undefined,
         name: form.name.trim(),
         displayName: form.displayName.trim() || undefined,
-        type: form.type.trim() || selectedGroup.type || 'Virtual',
+        type: form.type.trim() || selectedGroup.type || 'Physical',
       });
-      toast.success('组织/用户组已更新');
+      toast.success('组织已更新');
       setEditing(false);
       await refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '更新组织/用户组失败');
+      toast.error(e instanceof Error ? e.message : '更新组织失败');
     }
   };
 
@@ -278,13 +288,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     if (!selectedGroup) return;
     try {
       await deleteGroup.mutateAsync({ orgId: zoneId, groupId: groupID(selectedGroup), recursive: false });
-      toast.success('组织/用户组已删除');
+      toast.success('组织已删除');
       setSelectedGroup(null);
       setSelectedUserId('');
       resetForm();
       await refetch();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '删除组织/用户组失败');
+      toast.error(e instanceof Error ? e.message : '删除组织失败');
     }
   };
 
@@ -292,12 +302,12 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     if (!selectedGroup || !selectedUserId) return;
     try {
       await assignUser.mutateAsync({ orgId: zoneId, groupId: selectedId, userId: selectedUserId });
-      toast.success('用户已加入当前组织/用户组');
+      toast.success('用户已加入当前组织');
       setSelectedUserId('');
       await refetch();
       await refetchSelectedGroupUsers();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '加入组织/用户组失败');
+      toast.error(e instanceof Error ? e.message : '加入组织失败');
     }
   };
 
@@ -307,11 +317,11 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     if (!id) return;
     try {
       await removeUser.mutateAsync({ orgId: zoneId, groupId: selectedId, userId: id });
-      toast.success('用户已移出当前组织/用户组');
+      toast.success('用户已移出当前组织');
       await refetch();
       await refetchSelectedGroupUsers();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '移出组织/用户组失败');
+      toast.error(e instanceof Error ? e.message : '移出组织失败');
     }
   };
 
@@ -325,14 +335,14 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               组织结构
             </CardTitle>
             <CardDescription className="text-xs">
-              IAM 组织结构基于用户源的多级 group 表达；根节点是用户源，子节点是平台组织/部门/用户组。
+              用户源不是组织；无父组织的节点是顶级组织，其他节点都是某个父组织的子组织。底层仍使用 Casdoor 多级 group 承载。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              <Metric label="一级节点" value={rootGroups.length} />
-              <Metric label="子级节点" value={nestedGroupCount} />
-              <Metric label="总节点" value={groups.length} />
+              <Metric label="顶级组织" value={topLevelOrganizationCount} />
+              <Metric label="子组织" value={childOrganizationCount} />
+              <Metric label="总组织" value={groups.length} />
             </div>
 
             <div className="rounded-md border p-2">
@@ -350,7 +360,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                   <Skeleton className="h-4 w-2/3" />
                 </div>
               ) : groups.length === 0 ? (
-                <div className="px-2 py-6 text-center text-xs text-muted-foreground">暂无组织/用户组节点</div>
+                <div className="px-2 py-6 text-center text-xs text-muted-foreground">暂无组织</div>
               ) : (
                 <GroupTreeRows
                   parentId=""
@@ -382,16 +392,16 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between text-sm">
-              <span>{selectedGroup ? '组织/用户组管理' : '用户源根节点'}</span>
+              <span>{selectedGroup ? '组织管理' : '用户源根节点'}</span>
               <Badge variant="secondary">{groups.length}</Badge>
             </CardTitle>
             <CardDescription className="text-xs">
-              当前路径：{selectedPath.join(' / ')}。未选中节点时，新建的是用户源下的一级组织/用户组；选中节点后，新建的是它的子节点。
+              当前路径：{selectedPath.join(' / ')}。未选中组织时，新建的是无父组织的顶级组织；选中组织后，新建的是它的子组织。
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">节点名称 *</label>
+              <label className="text-xs font-medium text-muted-foreground">组织名称 *</label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" placeholder="platform" />
             </div>
             <div className="space-y-1">
@@ -399,21 +409,21 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               <Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} className="h-8 text-xs" placeholder="平台组织" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">类型</label>
-              <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="h-8 text-xs" placeholder="Virtual" />
+              <label className="text-xs font-medium text-muted-foreground">组织类型</label>
+              <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="h-8 text-xs" placeholder="Physical" />
             </div>
             <div className="flex flex-wrap gap-2 md:col-span-3">
               <Button size="sm" className="h-8" onClick={handleCreate} disabled={createGroup.isPending}>
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                {selectedGroup ? '新建子节点' : '新建一级节点'}
+                {selectedGroup ? '新建子组织' : '新建顶级组织'}
               </Button>
               <Button size="sm" variant="outline" className="h-8" onClick={handleUpdate} disabled={!selectedGroup || updateGroup.isPending}>
                 <Save className="mr-1 h-3.5 w-3.5" />
-                更新选中节点
+                更新选中组织
               </Button>
               <Button size="sm" variant="destructive" className="h-8" onClick={handleDelete} disabled={!selectedGroup || deleteGroup.isPending}>
                 <Trash2 className="mr-1 h-3.5 w-3.5" />
-                删除选中节点
+                删除选中组织
               </Button>
               <Button size="sm" variant="ghost" className="h-8" onClick={handleSelectRoot}>
                 <X className="mr-1 h-3.5 w-3.5" />
@@ -427,14 +437,14 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">成员管理</CardTitle>
             <CardDescription className="text-xs">
-              {selectedGroup ? `把用户加入 ${groupLabel(selectedGroup)}，或从该节点移除。` : '先在左侧选择一个组织/用户组节点，再管理成员。'}
+              {selectedGroup ? `把用户加入 ${groupLabel(selectedGroup)}，或从该组织移除。` : '先在左侧选择一个组织，再管理成员。'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-col gap-2 md:flex-row">
               <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={!selectedGroup || assignableUsers.length === 0}>
                 <SelectTrigger className="h-8 flex-1 text-xs">
-                  <SelectValue placeholder={selectedGroup ? '选择要加入的用户' : '请选择组织/用户组节点'} />
+                  <SelectValue placeholder={selectedGroup ? '选择要加入的用户' : '请选择组织'} />
                 </SelectTrigger>
                 <SelectContent>
                   {assignableUsers.map((user) => {
@@ -445,7 +455,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               </Select>
               <Button size="sm" className="h-8" disabled={!selectedGroup || !selectedUserId || assignUser.isPending} onClick={handleAssignUser}>
                 <UserPlus className="mr-1 h-3.5 w-3.5" />
-                加入当前节点
+                加入当前组织
               </Button>
             </div>
 
@@ -461,9 +471,9 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               </TableHeader>
               <TableBody>
                 {!selectedGroup ? (
-                  <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">请选择组织/用户组节点</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">请选择组织</TableCell></TableRow>
                 ) : selectedGroupUsers.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">当前节点暂无成员</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">当前组织暂无成员</TableCell></TableRow>
                 ) : selectedGroupUsers.map((user) => {
                   const id = userID(user);
                   return (
@@ -488,9 +498,9 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">下级组织/用户组</CardTitle>
+            <CardTitle className="text-sm">下级组织</CardTitle>
             <CardDescription className="text-xs">
-              {selectedGroup ? `显示 ${groupLabel(selectedGroup)} 下的直接子节点` : '显示当前用户源下的一级节点'}
+              {selectedGroup ? `显示 ${groupLabel(selectedGroup)} 下的直接子组织` : '显示当前用户源下的顶级组织'}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -502,13 +512,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                   <TableHead className="text-xs">层级路径</TableHead>
                   <TableHead className="text-xs">类型</TableHead>
                   <TableHead className="text-xs">成员数</TableHead>
-                  <TableHead className="text-xs">子节点数</TableHead>
+                  <TableHead className="text-xs">子组织数</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {childGroups.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">暂无下级节点</TableCell>
+                    <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">暂无下级组织</TableCell>
                   </TableRow>
                 ) : childGroups.map((group) => {
                   const id = groupID(group);
