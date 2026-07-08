@@ -16,11 +16,11 @@ interface TopbarProps {
 const tabLabels: Record<Tab, string> = {
   users: 'nav.users',
   groups: 'nav.groups',
-  organizations: 'nav.organizations',
+  organizations: 'nav.groups',
   projects: 'nav.projects',
   grants: 'nav.grants',
   resources: 'nav.resources',
-  permissions: '权限控制台',
+  permissions: 'nav.permissions',
 };
 
 export function Topbar({ activeTab, onMenuClick }: TopbarProps) {
