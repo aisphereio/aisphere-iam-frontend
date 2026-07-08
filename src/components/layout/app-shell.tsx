@@ -8,6 +8,7 @@ import { Topbar } from './topbar';
 import { useMe, useLogout } from '@/hooks/use-auth';
 import type { Tab } from '@/lib/api/types';
 import { LoginPage } from './login-page';
+import { shouldProbePrincipal } from '@/lib/api/client';
 
 interface AppShellProps {
   children: (tab: Tab) => React.ReactNode;
@@ -17,15 +18,16 @@ export function AppShell({ children }: AppShellProps) {
   const [tab, setTab] = useState<Tab>('users');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const canProbePrincipal = shouldProbePrincipal();
 
-  // In Gateway-only OIDC mode, the Envoy Gateway handles authentication.
-  // If the user is not authenticated, the Gateway redirects to Casdoor
-  // before the request reaches the frontend. So we always assume the user
-  // is authenticated when the page loads.
-  const { data: principal, error: principalError } = useMe();
+  // In Gateway-protected same-origin deployments, the Envoy Gateway handles
+  // authentication before the request reaches the frontend. In local dev with a
+  // cross-origin IAM API, avoid probing /me until the user explicitly clicks the
+  // login button; otherwise the OIDC redirect happens inside XHR.
+  const { data: principal, error: principalError } = useMe(canProbePrincipal);
   const logout = useLogout();
 
-  if (principalError) {
+  if (!canProbePrincipal || principalError) {
     return (
       <TooltipProvider>
         <LoginPage />
