@@ -16,6 +16,9 @@ import type {
   IamRelationship,
   IamCheckPermissionRequest,
   IamCheckPermissionResponse,
+  IamAuthzSchemaReply,
+  IamAuthzRelationshipListReply,
+  IamAuthzEffectivePermissionsReply,
   LocalUser,
 } from './types';
 
@@ -128,6 +131,92 @@ export const iamPermissionApi = {
       method: 'POST',
       body: JSON.stringify(relationship),
     }),
+};
+
+/** IAM AuthZ Admin / Permission Console API */
+export const iamAuthzAdminApi = {
+  getSchema: () => iamRequest<IamAuthzSchemaReply>('/v1/iam/authz/schema'),
+
+  validateSchema: (text: string) =>
+    iamRequest<{ valid: boolean; error?: string }>('/v1/iam/authz/schema:validate', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  publishSchema: (text: string) =>
+    iamRequest<{ published: boolean }>('/v1/iam/authz/schema:publish', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  listRelationships: (params?: {
+    resourceType?: string;
+    resourceId?: string;
+    relation?: string;
+    subjectType?: string;
+    subjectId?: string;
+    subjectRelation?: string;
+  }) =>
+    iamRequest<IamAuthzRelationshipListReply>(
+      `/v1/iam/authz/relationships${params ? `?${toQuery({
+        resource_type: params.resourceType,
+        resource_id: params.resourceId,
+        relation: params.relation,
+        subject_type: params.subjectType,
+        subject_id: params.subjectId,
+        subject_relation: params.subjectRelation,
+      })}` : ''}`,
+    ),
+
+  writeRelationship: (relationship: IamRelationship) =>
+    iamRequest<{ written: number; consistencyToken?: string }>('/v1/iam/authz/relationships', {
+      method: 'POST',
+      body: JSON.stringify({ relationship }),
+    }),
+
+  deleteRelationships: (filter: {
+    resourceType?: string;
+    resourceId?: string;
+    relation?: string;
+    subjectType?: string;
+    subjectId?: string;
+    subjectRelation?: string;
+  }) =>
+    iamRequest<{ deleted: number; consistencyToken?: string }>('/v1/iam/authz/relationships:delete', {
+      method: 'POST',
+      body: JSON.stringify({ filter }),
+    }),
+
+  checkPermission: (req: IamCheckPermissionRequest) =>
+    iamRequest<IamCheckPermissionResponse>('/v1/iam/authz/permissions:check', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  explainPermission: (req: IamCheckPermissionRequest) =>
+    iamRequest<IamCheckPermissionResponse>('/v1/iam/authz/permissions:explain', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  effectivePermissions: (params: {
+    subjectType: string;
+    subjectId: string;
+    subjectRelation?: string;
+    resourceType: string;
+    resourceId: string;
+    permissions?: string[];
+  }) =>
+    iamRequest<IamAuthzEffectivePermissionsReply>(
+      `/v1/iam/authz/effective-permissions?${toQuery({
+        subject_type: params.subjectType,
+        subject_id: params.subjectId,
+        subject_relation: params.subjectRelation,
+        resource_type: params.resourceType,
+        resource_id: params.resourceId,
+        permissions: params.permissions?.join(','),
+      })}`,
+    ),
 };
 
 /** IAM Project Service (Control Plane) */

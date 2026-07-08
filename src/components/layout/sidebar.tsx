@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  Users, Shield, Folder, Key, Database, LogOut, Moon, Sun, Sparkles, GitBranch,
+  Users, Shield, Folder, Key, Database, LogOut, Moon, Sun, Sparkles, GitBranch, ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -22,6 +22,7 @@ const navItems: { key: Tab; labelKey: string; hintKey: string; icon: React.React
   { key: 'projects', labelKey: 'nav.projects', hintKey: 'nav.projects.hint', icon: <Folder className="h-4 w-4" /> },
   { key: 'grants', labelKey: 'nav.grants', hintKey: 'nav.grants.hint', icon: <Key className="h-4 w-4" /> },
   { key: 'resources', labelKey: 'nav.resources', hintKey: 'nav.resources.hint', icon: <Database className="h-4 w-4" /> },
+  { key: 'permissions', labelKey: '权限控制台', hintKey: '管理 SpiceDB schema 与 relationships', icon: <ShieldCheck className="h-4 w-4" /> },
 ];
 
 interface SidebarProps {

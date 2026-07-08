@@ -245,8 +245,25 @@ export interface IamCheckPermissionRequest {
 /** IAM Permission Check Response */
 export interface IamCheckPermissionResponse {
   allowed: boolean;
+  effect?: string;
   reason?: string;
   consistencyToken?: string;
+  steps?: string[];
+}
+
+export interface IamAuthzSchemaReply {
+  text: string;
+  version?: string;
+}
+
+export interface IamAuthzRelationshipListReply {
+  relationships: IamRelationship[];
+}
+
+export interface IamAuthzEffectivePermissionsReply {
+  subject: IamSubjectRef;
+  resource: IamResourceRef;
+  permissions: Record<string, { allowed: boolean; effect?: string; reason?: string }>;
 }
 
 export type LocalUser = {
@@ -258,8 +275,7 @@ export type LocalUser = {
   organization?: string;
   roles?: string[];
   permissions?: string[];
-  namespaces?: string[];
   disabled?: boolean;
 };
 
-export type Tab = 'users' | 'groups' | 'organizations' | 'projects' | 'grants' | 'resources';
+export type Tab = 'users' | 'groups' | 'organizations' | 'projects' | 'grants' | 'resources' | 'permissions';
