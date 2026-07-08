@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useMe } from '@/hooks/use-auth';
 import { useIamCreateGroup, useIamDeleteGroup, useIamDirectoryGroups, useIamDirectoryOrganization, useIamUpdateGroup } from '@/hooks/use-iam';
 import type { IamGroup, IamPrincipal } from '@/lib/api/types';
-
-// Casdoor Organization is displayed as the root of the directory tree.
-// Casdoor Groups are displayed as children below that root. This keeps the UI
-// aligned with how non-technical admins think about org -> department -> team.
 
 type GroupForm = {
   name: string;
@@ -49,20 +45,18 @@ function groupLabel(group?: IamGroup | null): string {
 }
 
 function buildChildrenMap(groups: IamGroup[], orgId: string): Map<string, IamGroup[]> {
-	  const map = new Map<string, IamGroup[]>();
-	  for (const group of groups) {
-	    // Casdoor 中顶级组的 parentId 是组织名（如 "aisphere"），
-	    // 前端统一归到空字符串根节点下展示。
-	    const parent = (!group.parentId || group.parentId === orgId) ? '' : group.parentId;
-	    const bucket = map.get(parent) || [];
-	    bucket.push(group);
-	    map.set(parent, bucket);
-	  }
-	  for (const bucket of map.values()) {
-	    bucket.sort((a, b) => groupLabel(a).localeCompare(groupLabel(b)));
-	  }
-	  return map;
-	}
+  const map = new Map<string, IamGroup[]>();
+  for (const group of groups) {
+    const parent = (!group.parentId || group.parentId === orgId) ? '' : group.parentId;
+    const bucket = map.get(parent) || [];
+    bucket.push(group);
+    map.set(parent, bucket);
+  }
+  for (const bucket of map.values()) {
+    bucket.sort((a, b) => groupLabel(a).localeCompare(groupLabel(b)));
+  }
+  return map;
+}
 
 function buildGroupMap(groups: IamGroup[]): Map<string, IamGroup> {
   const map = new Map<string, IamGroup>();
@@ -94,12 +88,16 @@ function GroupTreeRows({
   childrenMap,
   selectedId,
   onSelect,
+  expandedIds,
+  onToggle,
 }: {
   parentId: string;
   depth: number;
   childrenMap: Map<string, IamGroup[]>;
   selectedId: string;
   onSelect: (group: IamGroup) => void;
+  expandedIds: Set<string>;
+  onToggle: (id: string) => void;
 }) {
   const rows = childrenMap.get(parentId) || [];
   return (
@@ -108,19 +106,48 @@ function GroupTreeRows({
         const id = groupID(group);
         const active = selectedId === id;
         const childCount = childrenMap.get(id)?.length || 0;
+        const isExpanded = expandedIds.has(id);
         return (
           <div key={id}>
             <button
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${active ? 'bg-accent text-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'}`}
-              style={{ paddingLeft: 8 + depth * 14 }}
+              className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                active
+                  ? 'bg-accent text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+              }`}
+              style={{ paddingLeft: 8 + depth * 16 }}
               onClick={() => onSelect(group)}
             >
-              <GitBranch className="h-3.5 w-3.5 shrink-0" />
+              {childCount > 0 ? (
+                <span
+                  className="h-4 w-4 flex items-center justify-center shrink-0 cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); onToggle(id); }}
+                >
+                  <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                </span>
+              ) : (
+                <span className="w-4 shrink-0" />
+              )}
+              {childCount > 0 ? (
+                isExpanded ? <FolderOpen className="h-3.5 w-3.5 shrink-0 text-amber-500" /> : <Folder className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+              ) : (
+                <GitBranch className="h-3.5 w-3.5 shrink-0" />
+              )}
               <span className="truncate">{groupLabel(group)}</span>
               {childCount > 0 ? <Badge variant="secondary" className="ml-auto text-[9px]">{childCount}</Badge> : null}
               {group.type ? <Badge variant="outline" className="text-[9px]">{group.type}</Badge> : null}
             </button>
-            <GroupTreeRows parentId={id} depth={depth + 1} childrenMap={childrenMap} selectedId={selectedId} onSelect={onSelect} />
+            {isExpanded && childCount > 0 ? (
+              <GroupTreeRows
+                parentId={id}
+                depth={depth + 1}
+                childrenMap={childrenMap}
+                selectedId={selectedId}
+                onSelect={onSelect}
+                expandedIds={expandedIds}
+                onToggle={onToggle}
+              />
+            ) : null}
           </div>
         );
       })}
@@ -133,6 +160,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const [selectedGroup, setSelectedGroup] = useState<IamGroup | null>(null);
   const [form, setForm] = useState<GroupForm>(emptyForm);
   const [editing, setEditing] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const zoneId = identityOrgProp?.trim() || defaultZoneFromPrincipal(me);
   const { data: zone } = useIamDirectoryOrganization(zoneId);
@@ -149,8 +177,19 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const childGroups = selectedId ? (childrenMap.get(selectedId) || []) : rootGroups;
   const rootLabel = zone?.displayName || zone?.name || zoneId;
   const selectedPath = buildGroupPath(selectedGroup, groupMap, rootLabel);
-  const selectedParentLabel = selectedGroup ? groupLabel(selectedGroup) : `组织根节点：${rootLabel}`;
-  const nestedGroupCount = groups.filter((group) => group.parentId).length;
+  const nestedGroupCount = groups.filter((group) => group.parentId && group.parentId !== zoneId).length;
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -232,10 +271,10 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm">
               <Building2 className="h-4 w-4" />
-              组织与用户组
+              组织管理
             </CardTitle>
             <CardDescription className="text-xs">
-              组织作为顶级根节点，一级用户组挂在组织下，子用户组继续向下展开。
+              组织作为顶级根节点，用户组按层级展开。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -262,7 +301,15 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               ) : groups.length === 0 ? (
                 <div className="px-2 py-6 text-center text-xs text-muted-foreground">暂无用户组</div>
               ) : (
-                <GroupTreeRows parentId="" depth={0} childrenMap={childrenMap} selectedId={selectedId} onSelect={handleSelect} />
+                <GroupTreeRows
+                  parentId=""
+                  depth={0}
+                  childrenMap={childrenMap}
+                  selectedId={selectedId}
+                  onSelect={handleSelect}
+                  expandedIds={expandedIds}
+                  onToggle={toggleExpand}
+                />
               )}
             </div>
 
