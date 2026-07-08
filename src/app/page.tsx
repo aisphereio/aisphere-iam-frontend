@@ -17,9 +17,9 @@ const queryClient = new QueryClient({
   },
 });
 
-function PageRouter({ tab }: { tab: Tab }) {
-  if (tab === 'users') return <ExternalUsersPage />;
-  if (tab === 'groups') return <GroupsPage />;
+function PageRouter({ tab, identityOrg }: { tab: Tab; identityOrg: string }) {
+  if (tab === 'users') return <ExternalUsersPage identityOrg={identityOrg} />;
+  if (tab === 'groups') return <GroupsPage identityOrg={identityOrg} />;
   if (tab === 'permissions') return <PermissionsPage />;
   return <IamPage tab={tab} />;
 }
@@ -28,7 +28,7 @@ export default function IamConsole() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppShell>
-        {(tab) => <PageRouter tab={tab} />}
+        {(tab, identityOrg) => <PageRouter tab={tab} identityOrg={identityOrg} />}
       </AppShell>
     </QueryClientProvider>
   );

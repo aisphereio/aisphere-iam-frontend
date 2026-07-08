@@ -128,14 +128,13 @@ function GroupTreeRows({
   );
 }
 
-export function GroupsPage() {
+export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: string }) {
   const { data: me } = useMe();
-  const [zoneInput, setZoneInput] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<IamGroup | null>(null);
   const [form, setForm] = useState<GroupForm>(emptyForm);
   const [editing, setEditing] = useState(false);
 
-  const zoneId = zoneInput.trim() || defaultZoneFromPrincipal(me);
+  const zoneId = identityOrgProp?.trim() || defaultZoneFromPrincipal(me);
   const { data: zone } = useIamDirectoryOrganization(zoneId);
   const { data, isLoading, isFetching, error, refetch } = useIamDirectoryGroups(zoneId);
   const createGroup = useIamCreateGroup();
@@ -240,21 +239,6 @@ export function GroupsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">当前组织</label>
-              <Input
-                value={zoneInput}
-                onChange={(e) => {
-                  setZoneInput(e.target.value);
-                  setSelectedGroup(null);
-                  resetForm();
-                }}
-                placeholder={zoneId}
-                className="h-8 text-xs font-mono"
-              />
-              <p className="text-[10px] text-muted-foreground">对应 Casdoor Organization / IAM zone。组织本身只读，授权和用户组在此组织下维护。</p>
-            </div>
-
             <div className="grid grid-cols-3 gap-2">
               <Metric label="一级组" value={rootGroups.length} />
               <Metric label="子级组" value={nestedGroupCount} />

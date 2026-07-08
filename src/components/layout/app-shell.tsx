@@ -17,7 +17,7 @@ import {
 } from '@/lib/api/client';
 
 interface AppShellProps {
-  children: (tab: Tab) => React.ReactNode;
+  children: (tab: Tab, identityOrg: string) => React.ReactNode;
 }
 
 const LOGIN_CONFIRM_WINDOW_MS = 30_000;
@@ -29,6 +29,7 @@ function isRecentLoginAttempt(startedAt: number | null): startedAt is number {
 export function AppShell({ children }: AppShellProps) {
   const [tab, setTab] = useState<Tab>('users');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [identityOrg, setIdentityOrg] = useState('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loginStartedAt, setLoginStartedAt] = useState<number | null>(null);
   const [loginConfirmExpired, setLoginConfirmExpired] = useState(false);
@@ -122,6 +123,8 @@ export function AppShell({ children }: AppShellProps) {
           <Topbar
             activeTab={tab}
             onMenuClick={() => setMobileSidebarOpen(true)}
+            identityOrg={identityOrg}
+            onIdentityOrgChange={setIdentityOrg}
           />
 
           <main className="flex-1 overflow-hidden">
@@ -134,7 +137,7 @@ export function AppShell({ children }: AppShellProps) {
                 transition={{ duration: 0.15 }}
                 className="h-full"
               >
-                {children(tab)}
+                {children(tab, identityOrg)}
               </motion.div>
             </AnimatePresence>
           </main>

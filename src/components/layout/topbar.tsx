@@ -3,6 +3,7 @@
 import React from 'react';
 import { Menu, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useTheme } from 'next-themes';
 import { useT } from '@/lib/i18n';
 import { LanguageToggle } from './language-toggle';
@@ -11,10 +12,12 @@ import type { Tab } from '@/lib/api/types';
 interface TopbarProps {
   activeTab: Tab;
   onMenuClick: () => void;
+  identityOrg: string;
+  onIdentityOrgChange: (org: string) => void;
 }
 
-const tabLabels: Record<Tab, string> = {
-  users: '本地用户',
+const tabLabels: Record<string, string> = {
+  users: '身份目录',
   groups: '组织与用户组',
   organizations: '组织与用户组',
   projects: 'nav.projects',
@@ -23,7 +26,9 @@ const tabLabels: Record<Tab, string> = {
   permissions: '权限控制台',
 };
 
-export function Topbar({ activeTab, onMenuClick }: TopbarProps) {
+const identityTabs = new Set(['users', 'groups']);
+
+export function Topbar({ activeTab, onMenuClick, identityOrg, onIdentityOrgChange }: TopbarProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   const t = useT();
@@ -44,7 +49,18 @@ export function Topbar({ activeTab, onMenuClick }: TopbarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        {identityTabs.has(activeTab) ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">身份源</span>
+            <Input
+              value={identityOrg}
+              onChange={(e) => onIdentityOrgChange(e.target.value)}
+              placeholder="aisphere"
+              className="h-7 w-32 text-xs font-mono"
+            />
+          </div>
+        ) : null}
         <LanguageToggle />
         <Button
           variant="ghost"

@@ -41,12 +41,11 @@ function userSearchText(user: IamUser): string {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
-export function ExternalUsersPage() {
+export function ExternalUsersPage({ identityOrg: identityOrgProp }: { identityOrg?: string }) {
   const { data: me } = useMe();
-  const [orgId, setOrgId] = useState('');
   const [query, setQuery] = useState('');
 
-  const effectiveOrgId = orgId.trim() || defaultOrgFromPrincipal(me);
+  const effectiveOrgId = identityOrgProp?.trim() || defaultOrgFromPrincipal(me);
   const { data, isLoading, isFetching, error, refetch } = useIamExternalUsers(effectiveOrgId, {
     pageSize: 200,
   });
@@ -80,27 +79,16 @@ export function ExternalUsersPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[220px_1fr]">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">用户源</label>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">搜索</label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                value={orgId}
-                onChange={(e) => setOrgId(e.target.value)}
-                placeholder={effectiveOrgId || 'aisphere'}
-                className="h-8 text-xs font-mono"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="按用户名、显示名、邮箱、角色或组搜索"
+                className="h-8 pl-8 text-xs"
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">搜索</label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="按用户名、显示名、邮箱、角色或组搜索"
-                  className="h-8 pl-8 text-xs"
-                />
-              </div>
             </div>
           </div>
 
