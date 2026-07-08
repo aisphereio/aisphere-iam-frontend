@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Database, GitBranch, KeyRound, RefreshCw, ShieldCheck, UploadCloud } from 'lucide-react';
+import { Database, GitBranch, KeyRound, Layers3, ListChecks, RefreshCw, Route, ShieldCheck, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,7 @@ import {
   expressionToFriendlyText,
   permissionLabel,
   relationLabel,
+  type FriendlyPermission,
   type FriendlyResourceModel,
 } from '@/lib/authz/schema-summary';
 import { toast } from 'sonner';
@@ -101,6 +102,7 @@ export function PermissionsPage() {
 
   const selectedResource = resourceModels.find((resource) => resource.type === selectedResourceType) || resourceModels[0];
   const activeRelationships = relationshipsQuery.data?.relationships || [];
+  const modelStats = useMemo(() => summarizeModels(resourceModels), [resourceModels]);
   const relationshipPreview = useMemo(() => {
     const subject = `${relationship.subject.type}:${relationship.subject.id || '<subject-id>'}${relationship.subject.relation ? `#${relationship.subject.relation}` : ''}`;
     return `${relationship.resource.type}:${relationship.resource.id || '<resource-id>'}#${relationship.relation || '<relation>'}@${subject}`;
@@ -246,7 +248,7 @@ export function PermissionsPage() {
             <ShieldCheck className="h-5 w-5" /> 权限控制台
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            用资源、角色和权限矩阵维护授权关系；SpiceDB schema 原文已收进高级模式，避免日常运维直接编辑底层模型。
+            以资源类型、关系、权限表达式和继承链展示当前 SpiceDB 权限模型；Schema 原文只保留在高级模式。
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={() => { schemaQuery.refetch(); catalogQuery.refetch(); relationshipsQuery.refetch(); }}>
@@ -254,12 +256,14 @@ export function PermissionsPage() {
         </Button>
       </div>
 
+      <ModelOverview stats={modelStats} activeRelationshipCount={activeRelationships.length} schemaVersion={schemaQuery.data?.version} />
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Card className="xl:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><Database className="h-4 w-4" /> 权限模型</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Database className="h-4 w-4" /> 权限模型地图</CardTitle>
             <CardDescription>
-              后端以资源类型和角色模板提供可维护视图；必要时仍可在高级模式查看和发布 SpiceDB schema。
+              左侧选择资源类型，右侧会展示它的可授予关系、可检查权限、权限来源和继承路径。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -279,10 +283,11 @@ export function PermissionsPage() {
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{resource.description}</p>
                   <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-                    <span>{resource.permissions.length} 个权限</span>
+                    <span>{resource.permissions.length} 权限</span>
                     <span>·</span>
-                    <span>{resource.relations.length} 个关系</span>
-                    {resource.roles.length > 0 ? <><span>·</span><span>{resource.roles.length} 个角色</span></> : null}
+                    <span>{resource.relations.length} 关系</span>
+                    {resource.roles.length > 0 ? <><span>·</span><span>{resource.roles.length} 角色模板</span></> : null}
+                    {resource.inheritedRelations.length > 0 ? <><span>·</span><span>{resource.inheritedRelations.length} 继承入口</span></> : null}
                   </div>
                 </button>
               ))}
@@ -310,7 +315,7 @@ export function PermissionsPage() {
                     <UploadCloud className="h-3.5 w-3.5 mr-1" /> 发布 Schema
                   </Button>
                   {schemaQuery.data?.version ? <Badge variant="secondary">{schemaQuery.data.version}</Badge> : null}
-                  <Badge variant="outline" className="text-[10px]">{catalogQuery.data?.resourceTypes?.length ? '后端资源模型' : 'Schema 解析视图'}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{catalogQuery.data?.resourceTypes?.length ? 'Catalog + Schema 合并视图' : 'Schema 解析视图'}</Badge>
                 </div>
               </div>
             </details>
@@ -320,7 +325,7 @@ export function PermissionsPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2"><KeyRound className="h-4 w-4" /> 权限检查</CardTitle>
-            <CardDescription>检查某个用户或用户组是否拥有资源权限。</CardDescription>
+            <CardDescription>检查某个用户、服务或用户组成员是否拥有资源权限。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Field label="主体类型" value={checkForm.subjectType} onChange={(v) => setCheckForm({ ...checkForm, subjectType: v })} />
@@ -348,11 +353,11 @@ export function PermissionsPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2"><GitBranch className="h-4 w-4" /> 授权给用户 / 用户组</CardTitle>
-            <CardDescription>写入一条授权关系。建议优先选择角色，而不是手写 relationship。</CardDescription>
+            <CardDescription>写入一条授权关系。建议优先选择角色模板，而不是手写 relationship。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={fillCurrentUserAsZoneOwner}>当前用户设为组织 Owner</Button>
+              <Button size="sm" variant="outline" onClick={fillCurrentUserAsZoneOwner}>当前用户设为用户源 Owner</Button>
               <Button size="sm" variant="outline" onClick={() => setRelationship({ ...relationship, relation: 'user_viewer' })}>授予用户查看员</Button>
             </div>
             <Field label="资源类型" value={relationship.resource.type} onChange={(v) => setRelationship({ ...relationship, resource: { ...relationship.resource, type: v } })} />
@@ -448,25 +453,83 @@ export function PermissionsPage() {
   );
 }
 
-function ResourceDetail({ resource }: { resource: FriendlyResourceModel }) {
+function ModelOverview({ stats, activeRelationshipCount, schemaVersion }: { stats: ModelStats; activeRelationshipCount: number; schemaVersion?: string }) {
   return (
-    <div className="rounded-lg border p-3 space-y-3">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <MetricCard icon={<Layers3 className="h-4 w-4" />} label="资源类型" value={stats.resources} helper="definition / resource type" />
+      <MetricCard icon={<GitBranch className="h-4 w-4" />} label="关系" value={stats.relations} helper="可写入 relationship" />
+      <MetricCard icon={<ListChecks className="h-4 w-4" />} label="权限" value={stats.permissions} helper="可 CheckPermission" />
+      <MetricCard icon={<Route className="h-4 w-4" />} label="继承入口" value={stats.inheritanceEdges} helper="parent / zone / backing" />
+      <MetricCard icon={<Database className="h-4 w-4" />} label="当前关系" value={activeRelationshipCount} helper={schemaVersion || 'filtered relationships'} />
+    </div>
+  );
+}
+
+function MetricCard({ icon, label, value, helper }: { icon: React.ReactNode; label: string; value: number; helper: string }) {
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">{label}</div>
+          <div className="text-muted-foreground">{icon}</div>
+        </div>
+        <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
+        <div className="mt-1 text-[10px] text-muted-foreground truncate">{helper}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResourceDetail({ resource }: { resource: FriendlyResourceModel }) {
+  const directRelations = resource.relations.filter((relation) => !resource.inheritedRelations.some((item) => item.key === relation.key));
+  return (
+    <div className="rounded-lg border p-3 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">{resource.label}</div>
           <div className="text-xs text-muted-foreground mt-1">{resource.description}</div>
         </div>
-        <Badge variant="outline" className="text-[10px]">{resource.source === 'control-plane' ? '后端资源模型' : 'Schema 解析'}</Badge>
+        <div className="flex flex-wrap justify-end gap-1">
+          <Badge variant="outline" className="text-[10px]">
+            {resource.source === 'merged' ? 'Catalog + Schema' : resource.source === 'control-plane' ? '后端资源模型' : 'Schema 解析'}
+          </Badge>
+          <Badge variant="secondary" className="text-[10px]">{resource.type}</Badge>
+        </div>
       </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <MiniStat label="可授予关系" value={resource.relations.length} />
+        <MiniStat label="可检查权限" value={resource.permissions.length} />
+        <MiniStat label="角色模板" value={resource.roles.length} />
+        <MiniStat label="继承入口" value={resource.inheritedRelations.length} />
+      </div>
+
+      {resource.inheritedRelations.length > 0 ? (
+        <div>
+          <div className="text-xs font-medium mb-2">继承路径</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {resource.inheritedRelations.map((relation) => (
+              <div key={relation.key} className="rounded-md border bg-muted/30 p-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{relation.label}</span>
+                  <Badge variant="outline" className="text-[10px]">{relation.key}</Badge>
+                </div>
+                <div className="mt-1 text-muted-foreground">{relation.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {resource.roles.length > 0 ? (
         <div>
-          <div className="text-xs font-medium mb-2">可分配角色</div>
+          <div className="text-xs font-medium mb-2">可分配角色模板</div>
           <div className="flex flex-wrap gap-2">
             {resource.roles.map((role) => (
               <div key={`${role.roleKey}:${role.relation}`} className="rounded-md border px-2 py-1 text-xs">
                 <span className="font-medium">{role.label}</span>
                 {role.relation ? <span className="ml-1 text-muted-foreground">→ {relationLabel(role.relation)}</span> : null}
+                <span className="ml-1 font-mono text-[10px] text-muted-foreground">{role.roleKey}</span>
               </div>
             ))}
           </div>
@@ -474,19 +537,61 @@ function ResourceDetail({ resource }: { resource: FriendlyResourceModel }) {
       ) : null}
 
       <div>
-        <div className="text-xs font-medium mb-2">权限矩阵</div>
+        <div className="text-xs font-medium mb-2">关系模型</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {resource.permissions.map((permission) => (
-            <div key={permission.key} className="rounded-md border p-2">
+          {[...resource.inheritedRelations, ...directRelations].map((relation) => (
+            <div key={relation.key} className="rounded-md border p-2">
               <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-medium">{permission.label}</div>
-                <Badge variant="secondary" className="text-[10px]">{permission.key}</Badge>
+                <div className="text-xs font-medium">{relation.label}</div>
+                <Badge variant={relation.inherited ? 'secondary' : 'outline'} className="text-[10px]">{relation.key}</Badge>
               </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">{permission.description}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{relation.description}</div>
+              {relation.targets ? <div className="mt-1 font-mono text-[10px] text-muted-foreground break-all">{relation.targets}</div> : null}
             </div>
           ))}
         </div>
       </div>
+
+      <div>
+        <div className="text-xs font-medium mb-2">权限矩阵</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {resource.permissions.map((permission) => (
+            <PermissionCard key={permission.key} permission={permission} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PermissionCard({ permission }: { permission: FriendlyPermission }) {
+  return (
+    <div className="rounded-md border p-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-medium">{permission.label}</div>
+        <Badge variant="secondary" className="text-[10px]">{permission.key}</Badge>
+      </div>
+      <div className="mt-1 text-[11px] text-muted-foreground">{permission.description}</div>
+      {permission.expression ? (
+        <div className="mt-2 rounded bg-muted px-2 py-1 font-mono text-[10px] text-muted-foreground break-all">
+          {permission.expression}
+        </div>
+      ) : null}
+      {(permission.sources.length > 0 || permission.inherited.length > 0) ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {permission.sources.map((source) => <Badge key={source} variant="outline" className="text-[10px]">关系：{relationLabel(source)}</Badge>)}
+          {permission.inherited.map((source) => <Badge key={source} variant="secondary" className="text-[10px]">继承：{expressionToFriendlyText(source)}</Badge>)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border bg-card/50 px-2 py-1.5">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
@@ -551,7 +656,7 @@ function DecisionCard({ title, data }: { title: string; data: { allowed: boolean
 }
 
 function firstWritableRelation(resource: FriendlyResourceModel): string | undefined {
-  return resource.roles.find((role) => role.relation)?.relation || resource.relations.find((relation) => !['parent', 'zone'].includes(relation.key))?.key;
+  return resource.roles.find((role) => role.relation)?.relation || resource.relations.find((relation) => !['parent', 'zone', 'backing_skill', 'runs_agent'].includes(relation.key))?.key;
 }
 
 function relationshipOptions(resource?: FriendlyResourceModel): { value: string; label: string }[] {
@@ -561,11 +666,30 @@ function relationshipOptions(resource?: FriendlyResourceModel): { value: string;
     .map((role) => ({ value: role.relation || role.roleKey, label: `${role.label} (${role.relation || role.roleKey})` }));
   const roleValues = new Set(fromRoles.map((role) => role.value));
   const fromRelations = resource.relations
-    .filter((relation) => !['parent', 'zone'].includes(relation.key) && !roleValues.has(relation.key))
+    .filter((relation) => !['parent', 'zone', 'backing_skill', 'runs_agent'].includes(relation.key) && !roleValues.has(relation.key))
     .map((relation) => ({ value: relation.key, label: `${relation.label} (${relation.key})` }));
   return [...fromRoles, ...fromRelations];
 }
 
 function resourceName(type: string): string {
   return type.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+type ModelStats = {
+  resources: number;
+  relations: number;
+  permissions: number;
+  roles: number;
+  inheritanceEdges: number;
+};
+
+function summarizeModels(resources: FriendlyResourceModel[]): ModelStats {
+  return resources.reduce<ModelStats>((acc, resource) => {
+    acc.resources += 1;
+    acc.relations += resource.relations.length;
+    acc.permissions += resource.permissions.length;
+    acc.roles += resource.roles.length;
+    acc.inheritanceEdges += resource.inheritedRelations.length + resource.permissions.reduce((sum, permission) => sum + permission.inherited.length, 0);
+    return acc;
+  }, { resources: 0, relations: 0, permissions: 0, roles: 0, inheritanceEdges: 0 });
 }
