@@ -43,6 +43,10 @@ export const iamAuthApi = {
  *
  * Users are treated as external Casdoor users. The frontend is read-only and
  * does not create, update, disable, or delete identity-provider users.
+ *
+ * Casdoor organizations are displayed as read-only availability zones. Groups
+ * are managed below a selected zone; the zone itself is never selectable as a
+ * group and cannot be created from the IAM frontend.
  */
 export const iamDirectoryApi = {
   /** Get a user by org and user id */
@@ -66,13 +70,40 @@ export const iamDirectoryApi = {
     );
   },
 
-  /** Get organization */
+  /** Get organization / availability zone */
   getOrganization: (orgId: string) =>
     iamRequest<IamOrganization>(`/v1/iam/orgs/${encodeURIComponent(orgId)}`),
 
-  /** List groups in an organization */
-  listGroups: (orgId: string) =>
-    iamRequest<{ groups: IamGroup[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`),
+  /** List groups in an availability zone */
+  listGroups: (orgId: string, params?: { parentId?: string; type?: string; userId?: string }) => {
+    const q = toQuery({
+      parent_id: params?.parentId,
+      type: params?.type,
+      user_id: params?.userId,
+    });
+    return iamRequest<{ groups: IamGroup[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups${q ? `?${q}` : ''}`);
+  },
+
+  /** Create a group below the read-only availability-zone root or another group. */
+  createGroup: (orgId: string, group: { parentId?: string; name: string; displayName?: string; type?: string }) =>
+    iamRequest<IamGroup>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`, {
+      method: 'POST',
+      body: JSON.stringify(group),
+    }),
+
+  /** Update an existing group. */
+  updateGroup: (orgId: string, groupId: string, group: { parentId?: string; name?: string; displayName?: string; type?: string }) =>
+    iamRequest<IamGroup>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(group),
+    }),
+
+  /** Delete an existing group. Availability-zone roots cannot be deleted here. */
+  deleteGroup: (orgId: string, groupId: string, recursive = false) =>
+    iamRequest<{ success: boolean }>(
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}${recursive ? '?recursive=true' : ''}`,
+      { method: 'DELETE' },
+    ),
 };
 
 /** IAM Permission Service */
