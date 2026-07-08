@@ -20,6 +20,7 @@ const tabLabels: Record<Tab, string> = {
   projects: 'nav.projects',
   grants: 'nav.grants',
   resources: 'nav.resources',
+  permissions: 'nav.permissions',
 };
 
 export function Topbar({ activeTab, onMenuClick }: TopbarProps) {
