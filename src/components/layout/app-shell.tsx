@@ -26,10 +26,30 @@ function isRecentLoginAttempt(startedAt: number | null): startedAt is number {
   return startedAt !== null && Date.now() - startedAt < LOGIN_CONFIRM_WINDOW_MS;
 }
 
+const IDENTITY_ORG_KEY = 'aisphere_iam_identity_org';
+
+function loadIdentityOrg(): string {
+  if (typeof window === 'undefined') return 'aisphere';
+  try {
+    return window.localStorage.getItem(IDENTITY_ORG_KEY) || 'aisphere';
+  } catch {
+    return 'aisphere';
+  }
+}
+
+function saveIdentityOrg(org: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(IDENTITY_ORG_KEY, org);
+  } catch {
+    // Ignore unavailable storage.
+  }
+}
+
 export function AppShell({ children }: AppShellProps) {
   const [tab, setTab] = useState<Tab>('users');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [identityOrg, setIdentityOrg] = useState('');
+  const [identityOrg, setIdentityOrg] = useState(loadIdentityOrg);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loginStartedAt, setLoginStartedAt] = useState<number | null>(null);
   const [loginConfirmExpired, setLoginConfirmExpired] = useState(false);
@@ -124,7 +144,10 @@ export function AppShell({ children }: AppShellProps) {
             activeTab={tab}
             onMenuClick={() => setMobileSidebarOpen(true)}
             identityOrg={identityOrg}
-            onIdentityOrgChange={setIdentityOrg}
+            onIdentityOrgChange={(org) => {
+              setIdentityOrg(org);
+              saveIdentityOrg(org);
+            }}
           />
 
           <main className="flex-1 overflow-hidden">

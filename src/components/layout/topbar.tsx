@@ -32,6 +32,8 @@ const identityOrgs = [
   { value: 'aisphere', label: 'aisphere' },
 ];
 
+const defaultIdentityOrg = 'aisphere';
+
 export function Topbar({ activeTab, onMenuClick, identityOrg, onIdentityOrgChange }: TopbarProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
@@ -57,7 +59,7 @@ export function Topbar({ activeTab, onMenuClick, identityOrg, onIdentityOrgChang
         {identityTabs.has(activeTab) ? (
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">身份源</span>
-            <Select value={identityOrg} onValueChange={onIdentityOrgChange}>
+            <Select value={identityOrg || defaultIdentityOrg} onValueChange={onIdentityOrgChange}>
               <SelectTrigger className="h-7 w-32 text-xs">
                 <SelectValue />
               </SelectTrigger>
