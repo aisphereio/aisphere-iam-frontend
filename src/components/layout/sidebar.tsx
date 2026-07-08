@@ -77,6 +77,10 @@ function getRoleLabel(principal: Record<string, unknown> | null, t?: (key: strin
   return t ? t('common.member') : 'member';
 }
 
+function getDefaultOpenSections(): Record<string, boolean> {
+  return Object.fromEntries(navSections.map((section) => [section.title, true]));
+}
+
 export function Sidebar({
   activeTab,
   onTabChange,
@@ -88,11 +92,21 @@ export function Sidebar({
 }: SidebarProps) {
   const { theme, setTheme } = useTheme();
   const t = useT();
+  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>(getDefaultOpenSections);
   const username = (principal?.subjectId || principal?.username || 'user') as string;
   const displayName = (principal?.displayName || principal?.name || username) as string;
   const avatar = (principal?.avatar || principal?.picture) as string | undefined;
   const initials = getInitials(displayName || username);
   const role = getRoleLabel(principal, t);
+
+  const toggleSection = (title: string) => {
+    setOpenSections((current) => ({
+      ...current,
+      [title]: !(current[title] ?? true),
+    }));
+  };
+
+  const showSectionItems = (title: string) => collapsed || (openSections[title] ?? true);
 
   return (
     <motion.aside
@@ -118,60 +132,72 @@ export function Sidebar({
         <nav className="flex flex-col gap-2 px-2">
           {navSections.map((section) => {
             const sectionActive = section.items.some((item) => item.key === activeTab);
+            const sectionOpen = showSectionItems(section.title);
+            const sectionContentId = `nav-section-${section.title}`;
+
             return (
               <div key={section.title} className={cn('rounded-lg', !collapsed && sectionActive && 'bg-muted/40 py-1')}>
                 {!collapsed ? (
-                  <div className="mb-0.5 flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.title)}
+                    aria-expanded={sectionOpen}
+                    aria-controls={sectionContentId}
+                    className="mb-0.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+                  >
                     <span className={cn(sectionActive && 'text-violet-600 dark:text-violet-400')}>{section.icon}</span>
                     <span className="truncate">{section.title}</span>
-                    <ChevronDown className="ml-auto h-3 w-3 opacity-50" />
-                  </div>
+                    <ChevronDown className={cn('ml-auto h-3 w-3 opacity-50 transition-transform', !sectionOpen && '-rotate-90')} />
+                  </button>
                 ) : null}
 
-                <div className="flex flex-col gap-0.5">
-                  {section.items.map((item) => {
-                    const isActive = activeTab === item.key;
-                    return (
-                      <Tooltip key={item.key} delayDuration={collapsed ? 0 : 999}>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => onTabChange(item.key)}
-                            className={cn(
-                              'relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-all duration-150 w-full text-left group',
-                              !collapsed && 'ml-1 w-[calc(100%-0.25rem)]',
-                              isActive
-                                ? 'text-foreground font-medium bg-accent shadow-sm'
-                                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                            )}
-                          >
-                            {isActive && (
-                              <motion.div
-                                layoutId="sidebar-active-indicator"
-                                className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-500"
-                                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                              />
-                            )}
-                            <span className={cn('shrink-0', isActive && 'text-violet-600 dark:text-violet-400')}>
-                              {item.icon}
-                            </span>
-                            {!collapsed && (
-                              <div className="min-w-0 flex-1">
-                                <div className="truncate text-[13px]">{item.label}</div>
-                                {isActive ? <div className="truncate text-[10px] font-normal text-muted-foreground">{item.hint}</div> : null}
-                              </div>
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        {collapsed && (
-                          <TooltipContent side="right" className="flex flex-col gap-0.5">
-                            <p className="font-medium">{item.label}</p>
-                            <p className="text-xs text-muted-foreground">{item.hint}</p>
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    );
-                  })}
-                </div>
+                {sectionOpen ? (
+                  <div id={sectionContentId} className="flex flex-col gap-0.5">
+                    {section.items.map((item) => {
+                      const isActive = activeTab === item.key;
+                      return (
+                        <Tooltip key={item.key} delayDuration={collapsed ? 0 : 999}>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => onTabChange(item.key)}
+                              className={cn(
+                                'relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-all duration-150 w-full text-left group',
+                                !collapsed && 'ml-1 w-[calc(100%-0.25rem)]',
+                                isActive
+                                  ? 'text-foreground font-medium bg-accent shadow-sm'
+                                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                              )}
+                            >
+                              {isActive && (
+                                <motion.div
+                                  layoutId="sidebar-active-indicator"
+                                  className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-500"
+                                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                                />
+                              )}
+                              <span className={cn('shrink-0', isActive && 'text-violet-600 dark:text-violet-400')}>
+                                {item.icon}
+                              </span>
+                              {!collapsed && (
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-[13px]">{item.label}</div>
+                                  {isActive ? <div className="truncate text-[10px] font-normal text-muted-foreground">{item.hint}</div> : null}
+                                </div>
+                              )}
+                            </button>
+                          </TooltipTrigger>
+                          {collapsed && (
+                            <TooltipContent side="right" className="flex flex-col gap-0.5">
+                              <p className="font-medium">{item.label}</p>
+                              <p className="text-xs text-muted-foreground">{item.hint}</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -193,6 +219,7 @@ export function Sidebar({
       <div className="border-t px-2 py-2">
         <div className="flex items-center gap-2 px-1.5 py-1">
           <button
+            type="button"
             onClick={onOpenProfile}
             className="shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 rounded-full"
             title={t('user.openProfile')}
@@ -208,6 +235,7 @@ export function Sidebar({
           </button>
           {!collapsed && (
             <button
+              type="button"
               onClick={onOpenProfile}
               className="flex-1 min-w-0 text-left rounded-sm hover:bg-accent/60 px-1 py-0.5 transition-colors"
             >
@@ -256,7 +284,10 @@ export function Sidebar({
 
       {/* Collapse toggle */}
       <button
+        type="button"
         onClick={onToggleCollapse}
+        aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
+        title={collapsed ? '展开侧边栏' : '收起侧边栏'}
         className="flex items-center justify-center h-8 border-t text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
       >
         <span className={cn('transition-transform', collapsed ? 'rotate-180' : '')}>
