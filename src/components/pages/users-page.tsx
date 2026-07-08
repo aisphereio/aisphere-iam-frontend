@@ -122,15 +122,14 @@ export function ExternalUsersPage() {
                 <TableHead className="text-xs">邮箱</TableHead>
                 <TableHead className="text-xs">外部 ID</TableHead>
                 <TableHead className="text-xs">用户源</TableHead>
-                <TableHead className="text-xs">角色</TableHead>
-                <TableHead className="text-xs">组</TableHead>
+<TableHead className="text-xs">组</TableHead>
                 <TableHead className="text-xs">状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? Array.from({ length: 6 }).map((_, index) => (
                 <TableRow key={index}>
-                  <TableCell colSpan={8}><Skeleton className="h-4 w-full" /></TableCell>
+                  <TableCell colSpan={7}><Skeleton className="h-4 w-full" /></TableCell>
                 </TableRow>
               )) : filteredUsers.length === 0 ? (
                 <TableRow>
@@ -147,16 +146,9 @@ export function ExternalUsersPage() {
                     {user.externalId || user.id || '-'}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{user.orgId || effectiveOrgId}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(user.roles || []).length === 0 ? <span className="text-xs text-muted-foreground">-</span> : user.roles?.map((role) => (
-                        <Badge key={role} variant="secondary" className="text-[10px]">{role}</Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(user.groups || []).length === 0 ? <span className="text-xs text-muted-foreground">-</span> : user.groups?.map((group) => (
+<TableCell>
+	                    <div className="flex flex-wrap gap-1">
+	                      {(user.groups || []).length === 0 ? <span className="text-xs text-muted-foreground">-</span> : user.groups?.map((group) => (
                         <Badge key={group} variant="outline" className="text-[10px]">{group}</Badge>
                       ))}
                     </div>
