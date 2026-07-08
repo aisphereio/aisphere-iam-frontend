@@ -3,7 +3,18 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  Users, Shield, Folder, Key, Database, LogOut, Moon, Sun, Sparkles, GitBranch, ShieldCheck,
+  ChevronDown,
+  Database,
+  Folder,
+  GitBranch,
+  Key,
+  Layers3,
+  LogOut,
+  Moon,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -15,14 +26,34 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import type { Tab } from '@/lib/api/types';
 
-const navItems: { key: Tab; labelKey: string; hintKey: string; icon: React.ReactNode }[] = [
-  { key: 'users', labelKey: 'nav.users', hintKey: 'nav.users.hint', icon: <Users className="h-4 w-4" /> },
-  { key: 'groups', labelKey: 'nav.groups', hintKey: 'nav.groups.hint', icon: <GitBranch className="h-4 w-4" /> },
-  { key: 'organizations', labelKey: 'nav.organizations', hintKey: 'nav.organizations.hint', icon: <Shield className="h-4 w-4" /> },
-  { key: 'projects', labelKey: 'nav.projects', hintKey: 'nav.projects.hint', icon: <Folder className="h-4 w-4" /> },
-  { key: 'grants', labelKey: 'nav.grants', hintKey: 'nav.grants.hint', icon: <Key className="h-4 w-4" /> },
-  { key: 'resources', labelKey: 'nav.resources', hintKey: 'nav.resources.hint', icon: <Database className="h-4 w-4" /> },
-  { key: 'permissions', labelKey: '权限控制台', hintKey: '管理 SpiceDB schema 与 relationships', icon: <ShieldCheck className="h-4 w-4" /> },
+type NavItem = { key: Tab; label: string; hint: string; icon: React.ReactNode };
+type NavSection = { title: string; icon: React.ReactNode; items: NavItem[] };
+
+const navSections: NavSection[] = [
+  {
+    title: '身份目录',
+    icon: <Users className="h-3.5 w-3.5" />,
+    items: [
+      { key: 'users', label: '本地用户', hint: '查看 Casdoor / Gateway 注入后的用户身份', icon: <Users className="h-4 w-4" /> },
+      { key: 'groups', label: '组织与用户组', hint: '组织根节点 + 多级用户组树', icon: <GitBranch className="h-4 w-4" /> },
+    ],
+  },
+  {
+    title: '资源域',
+    icon: <Layers3 className="h-3.5 w-3.5" />,
+    items: [
+      { key: 'projects', label: '项目', hint: '管理组织下的项目', icon: <Folder className="h-4 w-4" /> },
+      { key: 'resources', label: '资源', hint: '维护资源类型、资源和绑定', icon: <Database className="h-4 w-4" /> },
+    ],
+  },
+  {
+    title: '权限治理',
+    icon: <ShieldCheck className="h-3.5 w-3.5" />,
+    items: [
+      { key: 'grants', label: '授权与角色', hint: '管理角色模板和访问授权', icon: <Key className="h-4 w-4" /> },
+      { key: 'permissions', label: '权限控制台', hint: '查看权限模型、授权关系和有效权限', icon: <ShieldCheck className="h-4 w-4" /> },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -66,7 +97,7 @@ export function Sidebar({
   return (
     <motion.aside
       className="hidden md:flex flex-col border-r bg-sidebar h-full shrink-0"
-      animate={{ width: collapsed ? 56 : 240 }}
+      animate={{ width: collapsed ? 56 : 268 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
     >
       {/* Brand */}
@@ -84,43 +115,64 @@ export function Sidebar({
 
       {/* Navigation */}
       <ScrollArea className="flex-1 py-2 scrollbar-thin">
-        <nav className="flex flex-col gap-0.5 px-2">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.key;
+        <nav className="flex flex-col gap-2 px-2">
+          {navSections.map((section) => {
+            const sectionActive = section.items.some((item) => item.key === activeTab);
             return (
-              <Tooltip key={item.key} delayDuration={collapsed ? 0 : 999}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => onTabChange(item.key)}
-                    className={cn(
-                      'relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-all duration-150 w-full text-left group',
-                      isActive
-                        ? 'text-foreground font-medium bg-accent'
-                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                    )}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="sidebar-active-indicator"
-                        className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-500"
-                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                      />
-                    )}
-                    <span className={cn('shrink-0', isActive && 'text-violet-600 dark:text-violet-400')}>
-                      {item.icon}
-                    </span>
-                    {!collapsed && (
-                      <span className="truncate text-[13px]">{t(item.labelKey)}</span>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                {collapsed && (
-                  <TooltipContent side="right" className="flex flex-col gap-0.5">
-                    <p className="font-medium">{t(item.labelKey)}</p>
-                    <p className="text-xs text-muted-foreground">{t(item.hintKey)}</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
+              <div key={section.title} className={cn('rounded-lg', !collapsed && sectionActive && 'bg-muted/40 py-1')}>
+                {!collapsed ? (
+                  <div className="mb-0.5 flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80">
+                    <span className={cn(sectionActive && 'text-violet-600 dark:text-violet-400')}>{section.icon}</span>
+                    <span className="truncate">{section.title}</span>
+                    <ChevronDown className="ml-auto h-3 w-3 opacity-50" />
+                  </div>
+                ) : null}
+
+                <div className="flex flex-col gap-0.5">
+                  {section.items.map((item) => {
+                    const isActive = activeTab === item.key;
+                    return (
+                      <Tooltip key={item.key} delayDuration={collapsed ? 0 : 999}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => onTabChange(item.key)}
+                            className={cn(
+                              'relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-all duration-150 w-full text-left group',
+                              !collapsed && 'ml-1 w-[calc(100%-0.25rem)]',
+                              isActive
+                                ? 'text-foreground font-medium bg-accent shadow-sm'
+                                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                            )}
+                          >
+                            {isActive && (
+                              <motion.div
+                                layoutId="sidebar-active-indicator"
+                                className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-500"
+                                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                              />
+                            )}
+                            <span className={cn('shrink-0', isActive && 'text-violet-600 dark:text-violet-400')}>
+                              {item.icon}
+                            </span>
+                            {!collapsed && (
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-[13px]">{item.label}</div>
+                                {isActive ? <div className="truncate text-[10px] font-normal text-muted-foreground">{item.hint}</div> : null}
+                              </div>
+                            )}
+                          </button>
+                        </TooltipTrigger>
+                        {collapsed && (
+                          <TooltipContent side="right" className="flex flex-col gap-0.5">
+                            <p className="font-medium">{item.label}</p>
+                            <p className="text-xs text-muted-foreground">{item.hint}</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
