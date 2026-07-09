@@ -1,12 +1,26 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Database, GitBranch, KeyRound, Layers3, ListChecks, RefreshCw, Route, ShieldCheck, UploadCloud } from 'lucide-react';
+import {
+  Box,
+  Code2,
+  Database,
+  GitBranch,
+  KeyRound,
+  Layers3,
+  ListChecks,
+  RefreshCw,
+  Route,
+  ShieldCheck,
+  UploadCloud,
+  UserRound,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
   useIamAuthzCatalog,
@@ -38,6 +52,11 @@ const DEFAULT_RESOURCE_ID: Record<string, string> = {
   iam_authz: 'global',
 };
 
+const TAB_VALUE_RESOURCE = 'resource';
+const TAB_VALUE_SUBJECT = 'subject';
+const TAB_VALUE_EXPLAIN = 'explain';
+const TAB_VALUE_MODEL = 'model';
+
 export function PermissionsPage() {
   const schemaQuery = useIamAuthzSchema();
   const catalogQuery = useIamAuthzCatalog();
@@ -45,22 +64,19 @@ export function PermissionsPage() {
 
   const [schemaDraft, setSchemaDraft] = useState('');
   const [selectedResourceType, setSelectedResourceType] = useState('zone');
+  const [resourceAuth, setResourceAuth] = useState({ resourceType: 'zone', resourceId: 'aisphere' });
+  const [subjectView, setSubjectView] = useState({ subjectType: 'user', subjectId: '', resourceType: 'zone', resourceId: 'aisphere', permissions: DEFAULT_PERMISSIONS });
+  const [explainForm, setExplainForm] = useState({ subjectType: 'user', subjectId: '', resourceType: 'zone', resourceId: 'aisphere', permission: 'manage_groups' });
   const [relationship, setRelationship] = useState<IamRelationship>({
     resource: { type: 'zone', id: 'aisphere' },
     relation: 'owner',
     subject: { type: 'user', id: '' },
   });
-  const [filter, setFilter] = useState({ resourceType: 'zone', resourceId: 'aisphere', relation: '', subjectType: '', subjectId: '' });
-  const [checkForm, setCheckForm] = useState({
-    subjectType: 'user',
-    subjectId: '',
-    resourceType: 'zone',
-    resourceId: 'aisphere',
-    permission: 'view_users',
-    permissions: DEFAULT_PERMISSIONS,
-  });
+  const [rawFilter, setRawFilter] = useState({ resourceType: 'zone', resourceId: 'aisphere', relation: '', subjectType: '', subjectId: '' });
 
-  const relationshipsQuery = useIamAuthzRelationships(filter);
+  const resourceRelationshipsQuery = useIamAuthzRelationships({ resourceType: resourceAuth.resourceType, resourceId: resourceAuth.resourceId });
+  const subjectRelationshipsQuery = useIamAuthzRelationships({ subjectType: subjectView.subjectType, subjectId: subjectView.subjectId });
+  const rawRelationshipsQuery = useIamAuthzRelationships(rawFilter);
   const validateSchema = useIamValidateAuthzSchema();
   const publishSchema = useIamPublishAuthzSchema();
   const writeRelationship = useIamWriteAuthzRelationship();
@@ -77,15 +93,10 @@ export function PermissionsPage() {
 
   useEffect(() => {
     if (!principal?.subjectId) return;
-    setCheckForm((prev) => prev.subjectId ? prev : {
-      ...prev,
-      subjectType: principal.subjectType || 'user',
-      subjectId: principal.subjectId,
-    });
-    setRelationship((prev) => prev.subject.id ? prev : {
-      ...prev,
-      subject: { ...prev.subject, type: principal.subjectType || 'user', id: principal.subjectId },
-    });
+    const subjectType = principal.subjectType || 'user';
+    setSubjectView((prev) => prev.subjectId ? prev : { ...prev, subjectType, subjectId: principal.subjectId });
+    setExplainForm((prev) => prev.subjectId ? prev : { ...prev, subjectType, subjectId: principal.subjectId });
+    setRelationship((prev) => prev.subject.id ? prev : { ...prev, subject: { ...prev.subject, type: subjectType, id: principal.subjectId } });
   }, [principal?.subjectId, principal?.subjectType]);
 
   const resourceModels = useMemo(
@@ -101,45 +112,32 @@ export function PermissionsPage() {
   }, [resourceModels, selectedResourceType]);
 
   const selectedResource = resourceModels.find((resource) => resource.type === selectedResourceType) || resourceModels[0];
-  const activeRelationships = relationshipsQuery.data?.relationships || [];
+  const resourceRelationships = resourceRelationshipsQuery.data?.relationships || [];
+  const subjectRelationships = subjectRelationshipsQuery.data?.relationships || [];
+  const rawRelationships = rawRelationshipsQuery.data?.relationships || [];
   const modelStats = useMemo(() => summarizeModels(resourceModels), [resourceModels]);
-  const relationshipPreview = useMemo(() => {
-    const subject = `${relationship.subject.type}:${relationship.subject.id || '<subject-id>'}${relationship.subject.relation ? `#${relationship.subject.relation}` : ''}`;
-    return `${relationship.resource.type}:${relationship.resource.id || '<resource-id>'}#${relationship.relation || '<relation>'}@${subject}`;
-  }, [relationship]);
+  const resourceTypeOptions = useMemo(() => resourceModels.map((resource) => ({ value: resource.type, label: `${resource.label} (${resource.type})` })), [resourceModels]);
+  const relationshipPreview = useMemo(() => relationshipToText(relationship), [relationship]);
 
   const handleSelectResource = (resource: FriendlyResourceModel) => {
     const resourceId = DEFAULT_RESOURCE_ID[resource.type] || '';
     const relation = firstWritableRelation(resource) || 'owner';
     const permission = resource.permissions[0]?.key || 'view';
     setSelectedResourceType(resource.type);
+    setResourceAuth({ resourceType: resource.type, resourceId });
     setRelationship((prev) => ({
       ...prev,
       resource: { type: resource.type, id: resourceId },
       relation,
     }));
-    setFilter((prev) => ({ ...prev, resourceType: resource.type, resourceId }));
-    setCheckForm((prev) => ({
+    setSubjectView((prev) => ({
       ...prev,
       resourceType: resource.type,
       resourceId,
-      permission,
       permissions: resource.permissions.map((p) => p.key).join(','),
     }));
-  };
-
-  const fillCurrentUserAsZoneOwner = () => {
-    const subjectId = principal?.subjectId || checkForm.subjectId;
-    if (!subjectId) {
-      toast.error('当前用户 subject id 为空，请先确认 /v1/iam/me 返回正常');
-      return;
-    }
-    setRelationship({
-      resource: { type: 'zone', id: 'aisphere' },
-      relation: 'owner',
-      subject: { type: principal?.subjectType || checkForm.subjectType || 'user', id: subjectId },
-    });
-    setFilter({ resourceType: 'zone', resourceId: 'aisphere', relation: 'owner', subjectType: '', subjectId: '' });
+    setExplainForm((prev) => ({ ...prev, resourceType: resource.type, resourceId, permission }));
+    setRawFilter((prev) => ({ ...prev, resourceType: resource.type, resourceId }));
   };
 
   const handleValidate = async () => {
@@ -168,7 +166,7 @@ export function PermissionsPage() {
     try {
       await writeRelationship.mutateAsync(relationship);
       toast.success('授权关系已写入');
-      relationshipsQuery.refetch();
+      await Promise.all([resourceRelationshipsQuery.refetch(), subjectRelationshipsQuery.refetch(), rawRelationshipsQuery.refetch()]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '授权关系写入失败');
     }
@@ -185,59 +183,77 @@ export function PermissionsPage() {
         subjectRelation: rel.subject.relation,
       });
       toast.success('授权关系已删除');
-      relationshipsQuery.refetch();
+      await Promise.all([resourceRelationshipsQuery.refetch(), subjectRelationshipsQuery.refetch(), rawRelationshipsQuery.refetch()]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '授权关系删除失败');
     }
   };
 
-  const permissionRequest = {
-    subject: { type: checkForm.subjectType, id: checkForm.subjectId },
-    resource: { type: checkForm.resourceType, id: checkForm.resourceId },
-    permission: checkForm.permission,
-    orgId: principal?.orgId || 'aisphere',
-  };
-
   const handleCheck = async () => {
-    if (!checkForm.subjectId || !checkForm.resourceType || !checkForm.resourceId || !checkForm.permission) {
-      toast.error('请填写用户/资源/权限');
+    if (!explainForm.subjectId || !explainForm.resourceType || !explainForm.resourceId || !explainForm.permission) {
+      toast.error('请填写主体、资源和权限');
       return;
     }
     try {
-      await checkPermission.mutateAsync(permissionRequest);
+      await checkPermission.mutateAsync({
+        subject: { type: explainForm.subjectType, id: explainForm.subjectId },
+        resource: { type: explainForm.resourceType, id: explainForm.resourceId },
+        permission: explainForm.permission,
+        orgId: principal?.orgId || 'aisphere',
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '权限检查失败');
     }
   };
 
   const handleExplain = async () => {
-    if (!checkForm.subjectId || !checkForm.resourceType || !checkForm.resourceId || !checkForm.permission) {
-      toast.error('请填写用户/资源/权限');
+    if (!explainForm.subjectId || !explainForm.resourceType || !explainForm.resourceId || !explainForm.permission) {
+      toast.error('请填写主体、资源和权限');
       return;
     }
     try {
-      await explainPermission.mutateAsync(permissionRequest);
+      await explainPermission.mutateAsync({
+        subject: { type: explainForm.subjectType, id: explainForm.subjectId },
+        resource: { type: explainForm.resourceType, id: explainForm.resourceId },
+        permission: explainForm.permission,
+        orgId: principal?.orgId || 'aisphere',
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '权限解释失败');
     }
   };
 
   const handleEffective = async () => {
-    if (!checkForm.subjectId || !checkForm.resourceType || !checkForm.resourceId) {
-      toast.error('请填写用户和资源');
+    if (!subjectView.subjectId || !subjectView.resourceType || !subjectView.resourceId) {
+      toast.error('请填写主体和资源');
       return;
     }
     try {
       await effectivePermissions.mutateAsync({
-        subjectType: checkForm.subjectType,
-        subjectId: checkForm.subjectId,
-        resourceType: checkForm.resourceType,
-        resourceId: checkForm.resourceId,
-        permissions: checkForm.permissions.split(',').map((v) => v.trim()).filter(Boolean),
+        subjectType: subjectView.subjectType,
+        subjectId: subjectView.subjectId,
+        resourceType: subjectView.resourceType,
+        resourceId: subjectView.resourceId,
+        permissions: subjectView.permissions.split(',').map((v) => v.trim()).filter(Boolean),
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '有效权限查询失败');
     }
+  };
+
+  const fillCurrentUserAsZoneOwner = () => {
+    const subjectId = principal?.subjectId || subjectView.subjectId || explainForm.subjectId;
+    if (!subjectId) {
+      toast.error('当前用户 subject id 为空，请先确认 /v1/iam/me 返回正常');
+      return;
+    }
+    setRelationship({
+      resource: { type: 'zone', id: 'aisphere' },
+      relation: 'owner',
+      subject: { type: principal?.subjectType || 'user', id: subjectId },
+    });
+    setResourceAuth({ resourceType: 'zone', resourceId: 'aisphere' });
+    setRawFilter({ resourceType: 'zone', resourceId: 'aisphere', relation: 'owner', subjectType: '', subjectId: '' });
   };
 
   return (
@@ -245,208 +261,482 @@ export function PermissionsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" /> 权限控制台
+            <ShieldCheck className="h-5 w-5" /> 权限管理
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            以资源类型、关系、权限表达式和继承链展示当前 SpiceDB 权限模型；Schema 原文只保留在高级模式。
+            面向管理员展示资源授权、主体有效权限和权限解释；SpiceDB schema / relationship 原文收敛到开发者模型。
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={() => { schemaQuery.refetch(); catalogQuery.refetch(); relationshipsQuery.refetch(); }}>
+        <Button size="sm" variant="outline" onClick={() => { schemaQuery.refetch(); catalogQuery.refetch(); resourceRelationshipsQuery.refetch(); subjectRelationshipsQuery.refetch(); rawRelationshipsQuery.refetch(); }}>
           <RefreshCw className="h-3.5 w-3.5 mr-1" /> 刷新
         </Button>
       </div>
 
-      <ModelOverview stats={modelStats} activeRelationshipCount={activeRelationships.length} schemaVersion={schemaQuery.data?.version} />
+      <ModelOverview stats={modelStats} activeRelationshipCount={resourceRelationships.length} schemaVersion={schemaQuery.data?.version} />
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card className="xl:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><Database className="h-4 w-4" /> 权限模型地图</CardTitle>
-            <CardDescription>
-              左侧选择资源类型，右侧会展示它的可授予关系、可检查权限、权限来源和继承路径。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {resourceModels.length === 0 ? (
-                <div className="text-sm text-muted-foreground">正在加载权限模型...</div>
-              ) : resourceModels.map((resource) => (
-                <button
-                  key={resource.type}
-                  type="button"
-                  onClick={() => handleSelectResource(resource)}
-                  className={`rounded-lg border p-3 text-left transition hover:bg-muted ${selectedResourceType === resource.type ? 'border-primary bg-muted/60' : ''}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-sm">{resource.label}</div>
-                    <Badge variant="secondary" className="text-[10px]">{resource.type}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{resource.description}</p>
-                  <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-                    <span>{resource.permissions.length} 权限</span>
-                    <span>·</span>
-                    <span>{resource.relations.length} 关系</span>
-                    {resource.roles.length > 0 ? <><span>·</span><span>{resource.roles.length} 角色模板</span></> : null}
-                    {resource.inheritedRelations.length > 0 ? <><span>·</span><span>{resource.inheritedRelations.length} 继承入口</span></> : null}
-                  </div>
-                </button>
-              ))}
-            </div>
+      <Tabs defaultValue={TAB_VALUE_RESOURCE} className="space-y-4">
+        <TabsList className="h-auto flex-wrap justify-start">
+          <TabsTrigger value={TAB_VALUE_RESOURCE}><Box className="h-3.5 w-3.5" /> 资源授权</TabsTrigger>
+          <TabsTrigger value={TAB_VALUE_SUBJECT}><UserRound className="h-3.5 w-3.5" /> 用户权限</TabsTrigger>
+          <TabsTrigger value={TAB_VALUE_EXPLAIN}><KeyRound className="h-3.5 w-3.5" /> 权限解释器</TabsTrigger>
+          <TabsTrigger value={TAB_VALUE_MODEL}><Code2 className="h-3.5 w-3.5" /> 开发者模型</TabsTrigger>
+        </TabsList>
 
-            {selectedResource ? <ResourceDetail resource={selectedResource} /> : null}
+        <TabsContent value={TAB_VALUE_RESOURCE} className="space-y-4">
+          <ResourceAuthorizationPanel
+            resourceModels={resourceModels}
+            selectedResource={selectedResource}
+            resourceTypeOptions={resourceTypeOptions}
+            resourceAuth={resourceAuth}
+            setResourceAuth={setResourceAuth}
+            relationship={relationship}
+            setRelationship={setRelationship}
+            relationshipPreview={relationshipPreview}
+            relationships={resourceRelationships}
+            loading={resourceRelationshipsQuery.isLoading}
+            writePending={writeRelationship.isPending}
+            deletePending={deleteRelationships.isPending}
+            onSelectResource={handleSelectResource}
+            onWrite={handleWriteRelationship}
+            onDelete={handleDeleteRelationship}
+            onFillCurrentUserAsOwner={fillCurrentUserAsZoneOwner}
+          />
+        </TabsContent>
 
-            <details className="rounded-lg border bg-muted/20 p-3">
-              <summary className="cursor-pointer text-sm font-medium">高级：Schema 原文 / 校验 / 发布</summary>
-              <div className="mt-3 space-y-3">
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
-                  仅在修改底层权限模型时使用。普通授权、撤销授权、权限检查请使用下方表单。
+        <TabsContent value={TAB_VALUE_SUBJECT} className="space-y-4">
+          <SubjectPermissionsPanel
+            resourceTypeOptions={resourceTypeOptions}
+            subjectView={subjectView}
+            setSubjectView={setSubjectView}
+            subjectRelationships={subjectRelationships}
+            loading={subjectRelationshipsQuery.isLoading}
+            effectiveData={effectivePermissions.data}
+            effectivePending={effectivePermissions.isPending}
+            onEffective={handleEffective}
+          />
+        </TabsContent>
+
+        <TabsContent value={TAB_VALUE_EXPLAIN} className="space-y-4">
+          <PermissionExplainerPanel
+            resourceModels={resourceModels}
+            resourceTypeOptions={resourceTypeOptions}
+            explainForm={explainForm}
+            setExplainForm={setExplainForm}
+            checkData={checkPermission.data}
+            explainData={explainPermission.data}
+            checkPending={checkPermission.isPending}
+            explainPending={explainPermission.isPending}
+            onCheck={handleCheck}
+            onExplain={handleExplain}
+          />
+        </TabsContent>
+
+        <TabsContent value={TAB_VALUE_MODEL} className="space-y-4">
+          <DeveloperModelPanel
+            resourceModels={resourceModels}
+            selectedResourceType={selectedResourceType}
+            selectedResource={selectedResource}
+            schemaDraft={schemaDraft}
+            setSchemaDraft={setSchemaDraft}
+            schemaLoading={schemaQuery.isLoading}
+            schemaVersion={schemaQuery.data?.version}
+            catalogHasResourceTypes={Boolean(catalogQuery.data?.resourceTypes?.length)}
+            validatePending={validateSchema.isPending}
+            publishPending={publishSchema.isPending}
+            rawFilter={rawFilter}
+            setRawFilter={setRawFilter}
+            rawRelationships={rawRelationships}
+            rawLoading={rawRelationshipsQuery.isLoading}
+            deletePending={deleteRelationships.isPending}
+            onSelectResource={handleSelectResource}
+            onValidate={handleValidate}
+            onPublish={handlePublish}
+            onDelete={handleDeleteRelationship}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function ResourceAuthorizationPanel({
+  resourceModels,
+  selectedResource,
+  resourceTypeOptions,
+  resourceAuth,
+  setResourceAuth,
+  relationship,
+  setRelationship,
+  relationshipPreview,
+  relationships,
+  loading,
+  writePending,
+  deletePending,
+  onSelectResource,
+  onWrite,
+  onDelete,
+  onFillCurrentUserAsOwner,
+}: {
+  resourceModels: FriendlyResourceModel[];
+  selectedResource?: FriendlyResourceModel;
+  resourceTypeOptions: SelectOption[];
+  resourceAuth: ResourceAuthState;
+  setResourceAuth: (value: ResourceAuthState) => void;
+  relationship: IamRelationship;
+  setRelationship: (value: IamRelationship) => void;
+  relationshipPreview: string;
+  relationships: IamRelationship[];
+  loading: boolean;
+  writePending: boolean;
+  deletePending: boolean;
+  onSelectResource: (resource: FriendlyResourceModel) => void;
+  onWrite: () => void;
+  onDelete: (relationship: IamRelationship) => void;
+  onFillCurrentUserAsOwner: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2"><Database className="h-4 w-4" /> 资源目录</CardTitle>
+          <CardDescription>按业务资源选择授权对象，不需要管理员理解 SpiceDB tuple。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2">
+            {resourceModels.map((resource) => (
+              <button
+                key={resource.type}
+                type="button"
+                onClick={() => onSelectResource(resource)}
+                className={`rounded-lg border p-3 text-left transition hover:bg-muted ${resourceAuth.resourceType === resource.type ? 'border-primary bg-muted/60' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-sm">{resource.label}</div>
+                  <Badge variant="secondary" className="text-[10px]">{resource.type}</Badge>
                 </div>
-                <Textarea
-                  className="font-mono text-xs min-h-[320px]"
-                  value={schemaDraft}
-                  onChange={(e) => setSchemaDraft(e.target.value)}
-                  placeholder={schemaQuery.isLoading ? '正在加载 schema...' : 'SpiceDB schema'}
-                />
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={handleValidate} disabled={validateSchema.isPending || !schemaDraft}>
-                    校验 Schema
-                  </Button>
-                  <Button size="sm" onClick={handlePublish} disabled={publishSchema.isPending || !schemaDraft}>
-                    <UploadCloud className="h-3.5 w-3.5 mr-1" /> 发布 Schema
-                  </Button>
-                  {schemaQuery.data?.version ? <Badge variant="secondary">{schemaQuery.data.version}</Badge> : null}
-                  <Badge variant="outline" className="text-[10px]">{catalogQuery.data?.resourceTypes?.length ? 'Catalog + Schema 合并视图' : 'Schema 解析视图'}</Badge>
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{resource.description}</p>
+                <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                  <span>{resource.permissions.length} 权限</span><span>·</span><span>{resource.relations.length} 关系</span>
+                  {resource.inheritedRelations.length > 0 ? <><span>·</span><span>{resource.inheritedRelations.length} 继承入口</span></> : null}
                 </div>
-              </div>
-            </details>
-          </CardContent>
-        </Card>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
+      <div className="space-y-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><KeyRound className="h-4 w-4" /> 权限检查</CardTitle>
-            <CardDescription>检查某个用户、服务或用户组成员是否拥有资源权限。</CardDescription>
+            <CardTitle className="text-sm flex items-center justify-between gap-2">
+              <span>资源授权页</span>
+              {selectedResource ? <Badge variant="outline">{selectedResource.label}</Badge> : null}
+            </CardTitle>
+            <CardDescription>回答“谁可以访问这个资源、以什么角色访问”。继承来源可继续用权限解释器排查。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Field label="主体类型" value={checkForm.subjectType} onChange={(v) => setCheckForm({ ...checkForm, subjectType: v })} />
-            <Field label="主体 ID" value={checkForm.subjectId} onChange={(v) => setCheckForm({ ...checkForm, subjectId: v })} placeholder="user uuid / group id" />
-            <Field label="资源类型" value={checkForm.resourceType} onChange={(v) => setCheckForm({ ...checkForm, resourceType: v })} />
-            <Field label="资源 ID" value={checkForm.resourceId} onChange={(v) => setCheckForm({ ...checkForm, resourceId: v })} />
-            <SelectField
-              label="检查权限"
-              value={checkForm.permission}
-              options={(selectedResource?.permissions || []).map((p) => ({ value: p.key, label: `${p.label} (${p.key})` }))}
-              fallbackValue={checkForm.permission}
-              onChange={(v) => setCheckForm({ ...checkForm, permission: v })}
-            />
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={handleCheck} disabled={checkPermission.isPending}>检查</Button>
-              <Button size="sm" variant="outline" onClick={handleExplain} disabled={explainPermission.isPending}>解释</Button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <SelectField
+                label="资源类型"
+                value={resourceAuth.resourceType}
+                fallbackValue={resourceAuth.resourceType}
+                options={resourceTypeOptions}
+                onChange={(resourceType) => {
+                  setResourceAuth({ ...resourceAuth, resourceType, resourceId: DEFAULT_RESOURCE_ID[resourceType] || resourceAuth.resourceId });
+                  setRelationship({ ...relationship, resource: { ...relationship.resource, type: resourceType, id: DEFAULT_RESOURCE_ID[resourceType] || relationship.resource.id } });
+                }}
+              />
+              <Field label="资源 ID" value={resourceAuth.resourceId} onChange={(resourceId) => {
+                setResourceAuth({ ...resourceAuth, resourceId });
+                setRelationship({ ...relationship, resource: { ...relationship.resource, id: resourceId } });
+              }} />
+              <SelectField
+                label="授予角色 / 关系"
+                value={relationship.relation}
+                fallbackValue={relationship.relation}
+                options={relationshipOptions(selectedResource)}
+                onChange={(relation) => setRelationship({ ...relationship, relation })}
+              />
             </div>
-            {checkPermission.data ? <DecisionCard title="检查结果" data={checkPermission.data} /> : null}
-            {explainPermission.data ? <DecisionCard title="解释结果" data={explainPermission.data} /> : null}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><GitBranch className="h-4 w-4" /> 授权给用户 / 用户组</CardTitle>
-            <CardDescription>写入一条授权关系。建议优先选择角色模板，而不是手写 relationship。</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={fillCurrentUserAsZoneOwner}>当前用户设为用户源 Owner</Button>
-              <Button size="sm" variant="outline" onClick={() => setRelationship({ ...relationship, relation: 'user_viewer' })}>授予用户查看员</Button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <Field label="授权主体类型" value={relationship.subject.type} onChange={(type) => setRelationship({ ...relationship, subject: { ...relationship.subject, type } })} placeholder="user / group / service" />
+              <Field label="授权主体 ID" value={relationship.subject.id} onChange={(id) => setRelationship({ ...relationship, subject: { ...relationship.subject, id } })} placeholder="user uuid / group id" />
+              <Field label="主体关系" value={relationship.subject.relation || ''} onChange={(relation) => setRelationship({ ...relationship, subject: { ...relationship.subject, relation } })} placeholder="组授权常填 member，可空" />
             </div>
-            <Field label="资源类型" value={relationship.resource.type} onChange={(v) => setRelationship({ ...relationship, resource: { ...relationship.resource, type: v } })} />
-            <Field label="资源 ID" value={relationship.resource.id} onChange={(v) => setRelationship({ ...relationship, resource: { ...relationship.resource, id: v } })} />
-            <SelectField
-              label="授予角色 / 关系"
-              value={relationship.relation}
-              fallbackValue={relationship.relation}
-              options={relationshipOptions(selectedResource)}
-              onChange={(v) => setRelationship({ ...relationship, relation: v })}
-            />
-            <Field label="主体类型" value={relationship.subject.type} onChange={(v) => setRelationship({ ...relationship, subject: { ...relationship.subject, type: v } })} />
-            <Field label="主体 ID" value={relationship.subject.id} onChange={(v) => setRelationship({ ...relationship, subject: { ...relationship.subject, id: v } })} placeholder="user uuid / group id" />
-            <Field label="主体关系" value={relationship.subject.relation || ''} onChange={(v) => setRelationship({ ...relationship, subject: { ...relationship.subject, relation: v } })} placeholder="用户组授权填 member，可空" />
             <div className="rounded-md bg-muted px-2 py-1 text-[11px] font-mono break-all">{relationshipPreview}</div>
-            <Button size="sm" onClick={handleWriteRelationship} disabled={writeRelationship.isPending}>写入授权关系</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={onWrite} disabled={writePending}>添加授权</Button>
+              <Button size="sm" variant="outline" onClick={onFillCurrentUserAsOwner}>当前用户设为用户源 Owner</Button>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">授权关系列表</CardTitle>
-            <CardDescription>按资源、角色或主体过滤现有授权关系。</CardDescription>
+            <CardTitle className="text-sm">谁可以访问？</CardTitle>
+            <CardDescription>当前只展示直接 relationship；派生权限和继承链通过“权限解释器”查看。</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <Input className="h-8 text-xs" placeholder="资源类型" value={filter.resourceType} onChange={(e) => setFilter({ ...filter, resourceType: e.target.value })} />
-              <Input className="h-8 text-xs" placeholder="资源 ID" value={filter.resourceId} onChange={(e) => setFilter({ ...filter, resourceId: e.target.value })} />
-              <Input className="h-8 text-xs" placeholder="角色/关系" value={filter.relation} onChange={(e) => setFilter({ ...filter, relation: e.target.value })} />
-              <Input className="h-8 text-xs" placeholder="主体类型" value={filter.subjectType} onChange={(e) => setFilter({ ...filter, subjectType: e.target.value })} />
-              <Input className="h-8 text-xs" placeholder="主体 ID" value={filter.subjectId} onChange={(e) => setFilter({ ...filter, subjectId: e.target.value })} />
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">资源</TableHead>
-                  <TableHead className="text-xs">角色/关系</TableHead>
-                  <TableHead className="text-xs">主体</TableHead>
-                  <TableHead className="text-xs w-20">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {relationshipsQuery.isLoading ? (
-                  <TableRow><TableCell colSpan={4} className="text-xs text-muted-foreground">加载中...</TableCell></TableRow>
-                ) : activeRelationships.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-xs text-muted-foreground">暂无授权关系</TableCell></TableRow>
-                ) : activeRelationships.map((rel, idx) => (
-                  <TableRow key={`${rel.resource.type}:${rel.resource.id}:${rel.relation}:${rel.subject.type}:${rel.subject.id}:${idx}`}>
-                    <TableCell className="text-xs">
-                      <div className="font-medium">{resourceName(rel.resource.type)}</div>
-                      <div className="font-mono text-muted-foreground">{rel.resource.type}:{rel.resource.id}</div>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <div>{relationLabel(rel.relation)}</div>
-                      <div className="font-mono text-muted-foreground">{rel.relation}</div>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono">{rel.subject.type}:{rel.subject.id}{rel.subject.relation ? `#${rel.subject.relation}` : ''}</TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleDeleteRelationship(rel)} disabled={deleteRelationships.isPending}>删除</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <CardContent>
+            <RelationshipTable relationships={relationships} loading={loading} deletePending={deletePending} onDelete={onDelete} emptyText="当前资源暂无直接授权关系" />
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SubjectPermissionsPanel({
+  resourceTypeOptions,
+  subjectView,
+  setSubjectView,
+  subjectRelationships,
+  loading,
+  effectiveData,
+  effectivePending,
+  onEffective,
+}: {
+  resourceTypeOptions: SelectOption[];
+  subjectView: SubjectViewState;
+  setSubjectView: (value: SubjectViewState) => void;
+  subjectRelationships: IamRelationship[];
+  loading: boolean;
+  effectiveData?: { permissions?: Record<string, { allowed: boolean; effect?: string; reason?: string }> };
+  effectivePending: boolean;
+  onEffective: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2"><UserRound className="h-4 w-4" /> 用户权限页</CardTitle>
+          <CardDescription>从用户 / 用户组视角看直接拥有的授权，以及它在某个资源上的有效权限。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <Field label="主体类型" value={subjectView.subjectType} onChange={(subjectType) => setSubjectView({ ...subjectView, subjectType })} placeholder="user / group / service" />
+            <Field label="主体 ID" value={subjectView.subjectId} onChange={(subjectId) => setSubjectView({ ...subjectView, subjectId })} placeholder="user uuid / group id" />
+          </div>
+          <div className="rounded-md border p-2 text-xs text-muted-foreground">
+            这个视图适合排查“某个用户到底有哪些直接授权”。通过组继承、父资源继承和资源派生权限请结合右侧有效权限和权限解释器确认。
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">有效权限视图</CardTitle>
-          <CardDescription>批量检查用户在某资源上的权限集合，适合排查“为什么看不到/为什么能操作”。</CardDescription>
+          <CardTitle className="text-sm">直接拥有</CardTitle>
+          <CardDescription>按 subject 过滤出来的直接关系。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RelationshipTable relationships={subjectRelationships} loading={loading} emptyText="当前主体暂无直接授权关系" />
+        </CardContent>
+      </Card>
+
+      <Card className="xl:col-span-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">可访问资源 / 有效权限</CardTitle>
+          <CardDescription>选择一个资源，批量检查该主体在资源上的权限集合。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Field label="权限集合 CSV" value={checkForm.permissions} onChange={(v) => setCheckForm({ ...checkForm, permissions: v })} />
-          <Button size="sm" variant="outline" onClick={handleEffective} disabled={effectivePermissions.isPending}>查询有效权限</Button>
-          {effectivePermissions.data ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
-              {Object.entries(effectivePermissions.data.permissions || {}).map(([permission, result]) => (
-                <div key={permission} className="rounded-md border p-2">
-                  <div className="text-xs font-medium truncate">{permissionLabel(permission)}</div>
-                  <div className="text-[10px] font-mono text-muted-foreground truncate">{permission}</div>
-                  <Badge variant={result.allowed ? 'default' : 'secondary'} className="mt-1 text-[10px]">
-                    {result.allowed ? '允许' : '拒绝'}
-                  </Badge>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <SelectField label="资源类型" value={subjectView.resourceType} fallbackValue={subjectView.resourceType} options={resourceTypeOptions} onChange={(resourceType) => setSubjectView({ ...subjectView, resourceType, resourceId: DEFAULT_RESOURCE_ID[resourceType] || subjectView.resourceId })} />
+            <Field label="资源 ID" value={subjectView.resourceId} onChange={(resourceId) => setSubjectView({ ...subjectView, resourceId })} />
+            <Field label="权限集合 CSV" value={subjectView.permissions} onChange={(permissions) => setSubjectView({ ...subjectView, permissions })} />
+          </div>
+          <Button size="sm" variant="outline" onClick={onEffective} disabled={effectivePending}>查询有效权限</Button>
+          {effectiveData ? <EffectivePermissionGrid permissions={effectiveData.permissions || {}} /> : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PermissionExplainerPanel({
+  resourceModels,
+  resourceTypeOptions,
+  explainForm,
+  setExplainForm,
+  checkData,
+  explainData,
+  checkPending,
+  explainPending,
+  onCheck,
+  onExplain,
+}: {
+  resourceModels: FriendlyResourceModel[];
+  resourceTypeOptions: SelectOption[];
+  explainForm: ExplainFormState;
+  setExplainForm: (value: ExplainFormState) => void;
+  checkData?: DecisionData;
+  explainData?: DecisionData;
+  checkPending: boolean;
+  explainPending: boolean;
+  onCheck: () => void;
+  onExplain: () => void;
+}) {
+  const selectedModel = resourceModels.find((resource) => resource.type === explainForm.resourceType);
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2"><KeyRound className="h-4 w-4" /> 权限解释器</CardTitle>
+          <CardDescription>输入 subject / action / object，直接解释为什么允许或拒绝。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <Field label="Subject 类型" value={explainForm.subjectType} onChange={(subjectType) => setExplainForm({ ...explainForm, subjectType })} />
+            <Field label="Subject ID" value={explainForm.subjectId} onChange={(subjectId) => setExplainForm({ ...explainForm, subjectId })} placeholder="user uuid / group id" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <SelectField label="Object 类型" value={explainForm.resourceType} fallbackValue={explainForm.resourceType} options={resourceTypeOptions} onChange={(resourceType) => setExplainForm({ ...explainForm, resourceType, resourceId: DEFAULT_RESOURCE_ID[resourceType] || explainForm.resourceId, permission: resourceModels.find((r) => r.type === resourceType)?.permissions[0]?.key || explainForm.permission })} />
+            <Field label="Object ID" value={explainForm.resourceId} onChange={(resourceId) => setExplainForm({ ...explainForm, resourceId })} />
+          </div>
+          <SelectField
+            label="Action / Permission"
+            value={explainForm.permission}
+            fallbackValue={explainForm.permission}
+            options={(selectedModel?.permissions || []).map((permission) => ({ value: permission.key, label: `${permission.label} (${permission.key})` }))}
+            onChange={(permission) => setExplainForm({ ...explainForm, permission })}
+          />
+          <div className="rounded-md bg-muted px-2 py-1 text-[11px] font-mono break-all">
+            {explainForm.subjectType}:{explainForm.subjectId || '<subject-id>'} → {explainForm.permission || '<permission>'} → {explainForm.resourceType}:{explainForm.resourceId || '<resource-id>'}
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={onCheck} disabled={checkPending}>快速检查</Button>
+            <Button size="sm" onClick={onExplain} disabled={explainPending}>解释路径</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        {checkData ? <DecisionCard title="检查结果" data={checkData} /> : null}
+        {explainData ? <DecisionTimeline data={explainData} /> : (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">解释结果</CardTitle>
+              <CardDescription>执行“解释路径”后，这里会展示允许/拒绝和推导步骤。</CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              建议把业务报错里的 subject、object、permission 直接填进来，用这个页面排查 `spicedb check permission failed`。
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DeveloperModelPanel({
+  resourceModels,
+  selectedResourceType,
+  selectedResource,
+  schemaDraft,
+  setSchemaDraft,
+  schemaLoading,
+  schemaVersion,
+  catalogHasResourceTypes,
+  validatePending,
+  publishPending,
+  rawFilter,
+  setRawFilter,
+  rawRelationships,
+  rawLoading,
+  deletePending,
+  onSelectResource,
+  onValidate,
+  onPublish,
+  onDelete,
+}: {
+  resourceModels: FriendlyResourceModel[];
+  selectedResourceType: string;
+  selectedResource?: FriendlyResourceModel;
+  schemaDraft: string;
+  setSchemaDraft: (value: string) => void;
+  schemaLoading: boolean;
+  schemaVersion?: string;
+  catalogHasResourceTypes: boolean;
+  validatePending: boolean;
+  publishPending: boolean;
+  rawFilter: RawRelationshipFilter;
+  setRawFilter: (value: RawRelationshipFilter) => void;
+  rawRelationships: IamRelationship[];
+  rawLoading: boolean;
+  deletePending: boolean;
+  onSelectResource: (resource: FriendlyResourceModel) => void;
+  onValidate: () => void;
+  onPublish: () => void;
+  onDelete: (relationship: IamRelationship) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <Card className="xl:col-span-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2"><Database className="h-4 w-4" /> 权限模型地图</CardTitle>
+          <CardDescription>开发者 / 平台管理员使用，用来理解 schema、catalog、关系和继承链。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {resourceModels.length === 0 ? (
+              <div className="text-sm text-muted-foreground">正在加载权限模型...</div>
+            ) : resourceModels.map((resource) => (
+              <button
+                key={resource.type}
+                type="button"
+                onClick={() => onSelectResource(resource)}
+                className={`rounded-lg border p-3 text-left transition hover:bg-muted ${selectedResourceType === resource.type ? 'border-primary bg-muted/60' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-sm">{resource.label}</div>
+                  <Badge variant="secondary" className="text-[10px]">{resource.type}</Badge>
                 </div>
-              ))}
-            </div>
-          ) : null}
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{resource.description}</p>
+                <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                  <span>{resource.permissions.length} 权限</span><span>·</span><span>{resource.relations.length} 关系</span>
+                  {resource.roles.length > 0 ? <><span>·</span><span>{resource.roles.length} 角色模板</span></> : null}
+                  {resource.inheritedRelations.length > 0 ? <><span>·</span><span>{resource.inheritedRelations.length} 继承入口</span></> : null}
+                </div>
+              </button>
+            ))}
+          </div>
+          {selectedResource ? <ResourceDetail resource={selectedResource} /> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Schema 高级模式</CardTitle>
+          <CardDescription>只给开发者使用。普通管理员不要直接编辑 raw schema。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            className="font-mono text-xs min-h-[320px]"
+            value={schemaDraft}
+            onChange={(e) => setSchemaDraft(e.target.value)}
+            placeholder={schemaLoading ? '正在加载 schema...' : 'SpiceDB schema'}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onValidate} disabled={validatePending || !schemaDraft}>校验 Schema</Button>
+            <Button size="sm" onClick={onPublish} disabled={publishPending || !schemaDraft}><UploadCloud className="h-3.5 w-3.5 mr-1" /> 发布 Schema</Button>
+            {schemaVersion ? <Badge variant="secondary">{schemaVersion}</Badge> : null}
+            <Badge variant="outline" className="text-[10px]">{catalogHasResourceTypes ? 'Catalog + Schema 合并视图' : 'Schema 解析视图'}</Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="xl:col-span-3">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Raw Relationship 调试</CardTitle>
+          <CardDescription>用于底层排查。业务授权建议在“资源授权”页完成。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <Input className="h-8 text-xs" placeholder="资源类型" value={rawFilter.resourceType} onChange={(e) => setRawFilter({ ...rawFilter, resourceType: e.target.value })} />
+            <Input className="h-8 text-xs" placeholder="资源 ID" value={rawFilter.resourceId} onChange={(e) => setRawFilter({ ...rawFilter, resourceId: e.target.value })} />
+            <Input className="h-8 text-xs" placeholder="角色/关系" value={rawFilter.relation} onChange={(e) => setRawFilter({ ...rawFilter, relation: e.target.value })} />
+            <Input className="h-8 text-xs" placeholder="主体类型" value={rawFilter.subjectType} onChange={(e) => setRawFilter({ ...rawFilter, subjectType: e.target.value })} />
+            <Input className="h-8 text-xs" placeholder="主体 ID" value={rawFilter.subjectId} onChange={(e) => setRawFilter({ ...rawFilter, subjectId: e.target.value })} />
+          </div>
+          <RelationshipTable relationships={rawRelationships} loading={rawLoading} deletePending={deletePending} onDelete={onDelete} emptyText="暂无授权关系" />
         </CardContent>
       </Card>
     </div>
@@ -460,7 +750,7 @@ function ModelOverview({ stats, activeRelationshipCount, schemaVersion }: { stat
       <MetricCard icon={<GitBranch className="h-4 w-4" />} label="关系" value={stats.relations} helper="可写入 relationship" />
       <MetricCard icon={<ListChecks className="h-4 w-4" />} label="权限" value={stats.permissions} helper="可 CheckPermission" />
       <MetricCard icon={<Route className="h-4 w-4" />} label="继承入口" value={stats.inheritanceEdges} helper="parent / zone / backing" />
-      <MetricCard icon={<Database className="h-4 w-4" />} label="当前关系" value={activeRelationshipCount} helper={schemaVersion || 'filtered relationships'} />
+      <MetricCard icon={<Database className="h-4 w-4" />} label="当前资源关系" value={activeRelationshipCount} helper={schemaVersion || 'resource relationships'} />
     </div>
   );
 }
@@ -555,9 +845,7 @@ function ResourceDetail({ resource }: { resource: FriendlyResourceModel }) {
       <div>
         <div className="text-xs font-medium mb-2">权限矩阵</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {resource.permissions.map((permission) => (
-            <PermissionCard key={permission.key} permission={permission} />
-          ))}
+          {resource.permissions.map((permission) => <PermissionCard key={permission.key} permission={permission} />)}
         </div>
       </div>
     </div>
@@ -572,11 +860,7 @@ function PermissionCard({ permission }: { permission: FriendlyPermission }) {
         <Badge variant="secondary" className="text-[10px]">{permission.key}</Badge>
       </div>
       <div className="mt-1 text-[11px] text-muted-foreground">{permission.description}</div>
-      {permission.expression ? (
-        <div className="mt-2 rounded bg-muted px-2 py-1 font-mono text-[10px] text-muted-foreground break-all">
-          {permission.expression}
-        </div>
-      ) : null}
+      {permission.expression ? <div className="mt-2 rounded bg-muted px-2 py-1 font-mono text-[10px] text-muted-foreground break-all">{permission.expression}</div> : null}
       {(permission.sources.length > 0 || permission.inherited.length > 0) ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {permission.sources.map((source) => <Badge key={source} variant="outline" className="text-[10px]">关系：{relationLabel(source)}</Badge>)}
@@ -584,6 +868,107 @@ function PermissionCard({ permission }: { permission: FriendlyPermission }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RelationshipTable({ relationships, loading, deletePending, onDelete, emptyText }: { relationships: IamRelationship[]; loading: boolean; deletePending?: boolean; onDelete?: (relationship: IamRelationship) => void; emptyText: string }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="text-xs">资源</TableHead>
+          <TableHead className="text-xs">角色/关系</TableHead>
+          <TableHead className="text-xs">主体</TableHead>
+          {onDelete ? <TableHead className="text-xs w-20">操作</TableHead> : null}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {loading ? (
+          <TableRow><TableCell colSpan={onDelete ? 4 : 3} className="text-xs text-muted-foreground">加载中...</TableCell></TableRow>
+        ) : relationships.length === 0 ? (
+          <TableRow><TableCell colSpan={onDelete ? 4 : 3} className="py-8 text-center text-xs text-muted-foreground">{emptyText}</TableCell></TableRow>
+        ) : relationships.map((rel, idx) => (
+          <TableRow key={`${rel.resource.type}:${rel.resource.id}:${rel.relation}:${rel.subject.type}:${rel.subject.id}:${idx}`}>
+            <TableCell className="text-xs">
+              <div className="font-medium">{resourceName(rel.resource.type)}</div>
+              <div className="font-mono text-muted-foreground">{rel.resource.type}:{rel.resource.id}</div>
+            </TableCell>
+            <TableCell className="text-xs">
+              <div>{relationLabel(rel.relation)}</div>
+              <div className="font-mono text-muted-foreground">{rel.relation}</div>
+            </TableCell>
+            <TableCell className="text-xs font-mono">{subjectToText(rel.subject)}</TableCell>
+            {onDelete ? (
+              <TableCell>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onDelete(rel)} disabled={deletePending}>删除</Button>
+              </TableCell>
+            ) : null}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function EffectivePermissionGrid({ permissions }: { permissions: Record<string, { allowed: boolean; effect?: string; reason?: string }> }) {
+  const entries = Object.entries(permissions || {});
+  if (entries.length === 0) return <div className="text-xs text-muted-foreground">暂无有效权限结果</div>;
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
+      {entries.map(([permission, result]) => (
+        <div key={permission} className="rounded-md border p-2">
+          <div className="text-xs font-medium truncate">{permissionLabel(permission)}</div>
+          <div className="text-[10px] font-mono text-muted-foreground truncate">{permission}</div>
+          <Badge variant={result.allowed ? 'default' : 'secondary'} className="mt-1 text-[10px]">{result.allowed ? '允许' : '拒绝'}</Badge>
+          {result.reason ? <div className="mt-1 text-[10px] text-muted-foreground break-all">{result.reason}</div> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DecisionCard({ title, data }: { title: string; data: DecisionData }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          {title}
+          <Badge variant={data.allowed ? 'default' : 'secondary'}>{data.allowed ? '允许' : '拒绝'}</Badge>
+        </CardTitle>
+        {data.reason ? <CardDescription className="break-all">{data.reason}</CardDescription> : null}
+      </CardHeader>
+    </Card>
+  );
+}
+
+function DecisionTimeline({ data }: { data: DecisionData }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          解释路径
+          <Badge variant={data.allowed ? 'default' : 'secondary'}>{data.allowed ? 'YES / 允许' : 'NO / 拒绝'}</Badge>
+        </CardTitle>
+        {data.reason ? <CardDescription className="break-all">{data.reason}</CardDescription> : null}
+      </CardHeader>
+      <CardContent>
+        {data.steps?.length ? (
+          <div className="space-y-2">
+            {data.steps.map((step, idx) => (
+              <div key={`${step}:${idx}`} className="flex gap-3 rounded-md border p-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium">{idx + 1}</div>
+                <div>
+                  <div className="text-xs font-medium">{expressionToFriendlyText(step) || step}</div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted-foreground break-all">{step}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">当前后端没有返回解释步骤，只返回了最终决策。</div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -605,61 +990,25 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
   );
 }
 
-function SelectField({
-  label,
-  value,
-  options,
-  fallbackValue,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  fallbackValue: string;
-  onChange: (value: string) => void;
-}) {
-  if (options.length === 0) {
-    return <Field label={label} value={fallbackValue} onChange={onChange} />;
-  }
-  const normalizedOptions = options.some((option) => option.value === value)
-    ? options
-    : [{ value, label: value }, ...options];
+function SelectField({ label, value, options, fallbackValue, onChange }: { label: string; value: string; options: SelectOption[]; fallbackValue: string; onChange: (value: string) => void }) {
+  if (options.length === 0) return <Field label={label} value={fallbackValue} onChange={onChange} />;
+  const normalizedOptions = options.some((option) => option.value === value) ? options : [{ value, label: value }, ...options];
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium">{label}</label>
-      <select
-        className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+      <select className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs" value={value} onChange={(e) => onChange(e.target.value)}>
         {normalizedOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </div>
   );
 }
 
-function DecisionCard({ title, data }: { title: string; data: { allowed: boolean; effect?: string; reason?: string; steps?: string[] } }) {
-  return (
-    <div className="rounded-md border p-2 text-xs space-y-1">
-      <div className="flex items-center gap-2">
-        <span className="font-medium">{title}</span>
-        <Badge variant={data.allowed ? 'default' : 'secondary'}>{data.allowed ? '允许' : '拒绝'}</Badge>
-      </div>
-      {data.reason ? <div className="text-muted-foreground break-all">{data.reason}</div> : null}
-      {data.steps?.length ? (
-        <ul className="list-disc pl-4 text-muted-foreground space-y-0.5">
-          {data.steps.map((step) => <li key={step} className="break-all font-mono">{expressionToFriendlyText(step) || step}</li>)}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
-
-function firstWritableRelation(resource: FriendlyResourceModel): string | undefined {
+function firstWritableRelation(resource?: FriendlyResourceModel): string | undefined {
+  if (!resource) return undefined;
   return resource.roles.find((role) => role.relation)?.relation || resource.relations.find((relation) => !['parent', 'zone', 'backing_skill', 'runs_agent'].includes(relation.key))?.key;
 }
 
-function relationshipOptions(resource?: FriendlyResourceModel): { value: string; label: string }[] {
+function relationshipOptions(resource?: FriendlyResourceModel): SelectOption[] {
   if (!resource) return [];
   const fromRoles = resource.roles
     .filter((role) => role.relation)
@@ -674,6 +1023,27 @@ function relationshipOptions(resource?: FriendlyResourceModel): { value: string;
 function resourceName(type: string): string {
   return type.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
+
+function relationshipToText(rel: IamRelationship): string {
+  return `${rel.resource.type}:${rel.resource.id || '<resource-id>'}#${rel.relation || '<relation>'}@${subjectToText(rel.subject, true)}`;
+}
+
+function subjectToText(subject: { type: string; id: string; relation?: string }, withPlaceholder = false): string {
+  const id = subject.id || (withPlaceholder ? '<subject-id>' : '');
+  return `${subject.type}:${id}${subject.relation ? `#${subject.relation}` : ''}`;
+}
+
+type SelectOption = { value: string; label: string };
+
+type ResourceAuthState = { resourceType: string; resourceId: string };
+
+type SubjectViewState = { subjectType: string; subjectId: string; resourceType: string; resourceId: string; permissions: string };
+
+type ExplainFormState = { subjectType: string; subjectId: string; resourceType: string; resourceId: string; permission: string };
+
+type RawRelationshipFilter = { resourceType: string; resourceId: string; relation: string; subjectType: string; subjectId: string };
+
+type DecisionData = { allowed: boolean; effect?: string; reason?: string; steps?: string[] };
 
 type ModelStats = {
   resources: number;
