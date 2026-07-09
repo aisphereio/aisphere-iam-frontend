@@ -1,7 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X, ChevronDown, Folder, FolderOpen, UserMinus, UserPlus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X,
+  ChevronDown, ChevronRight, Folder, FolderOpen,
+  UserMinus, UserPlus, CornerDownRight, Network, Layers,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +15,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useMe } from '@/hooks/use-auth';
-import { useIamAssignUserToGroup, useIamCreateGroup, useIamDeleteGroup, useIamDirectoryGroups, useIamDirectoryOrganization, useIamExternalUsers, useIamRemoveUserFromGroup, useIamUpdateGroup } from '@/hooks/use-iam';
+import {
+  useIamAssignUserToGroup, useIamCreateGroup, useIamDeleteGroup,
+  useIamDirectoryGroups, useIamDirectoryOrganization,
+  useIamExternalUsers, useIamRemoveUserFromGroup, useIamUpdateGroup,
+} from '@/hooks/use-iam';
 import type { IamGroup, IamPrincipal, IamUser } from '@/lib/api/types';
 
 type OrganizationForm = {
@@ -53,7 +61,7 @@ function userLabel(user?: IamUser | null): string {
 
 function groupLabel(group?: IamGroup | null): string {
   if (!group) return '';
-  return group.displayName || group.name || group.id;
+  return group.displayName || group.name || group.id || '';
 }
 
 function parentKey(group: IamGroup, userSourceId: string): string {
@@ -103,6 +111,25 @@ function buildGroupPath(group: IamGroup | null, groupMap: Map<string, IamGroup>,
   return [rootLabel, ...path];
 }
 
+/** Collect all descendants of the given group id (DFS, includes no descendants of the root id itself). */
+function collectDescendants(
+  groupId: string,
+  childrenMap: Map<string, IamGroup[]>,
+): Array<{ group: IamGroup; depth: number }> {
+  const out: Array<{ group: IamGroup; depth: number }> = [];
+  const stack: Array<{ id: string; depth: number }> = [{ id: groupId, depth: 0 }];
+  while (stack.length > 0) {
+    const { id, depth } = stack.pop()!;
+    const children = childrenMap.get(id) || [];
+    for (const child of children) {
+      out.push({ group: child, depth: depth + 1 });
+      stack.push({ id: groupID(child), depth: depth + 1 });
+    }
+  }
+  return out;
+}
+
+// ─── Tree row with explicit connector lines ─────────────────────────────
 function GroupTreeRows({
   parentId,
   depth,
@@ -123,40 +150,49 @@ function GroupTreeRows({
   const rows = childrenMap.get(parentId) || [];
   return (
     <>
-      {rows.map((group) => {
+      {rows.map((group, idx) => {
         const id = groupID(group);
         const active = selectedId === id;
         const childCount = childrenMap.get(id)?.length || 0;
         const isExpanded = expandedIds.has(id);
+        const isLast = idx === rows.length - 1;
         return (
-          <div key={id}>
+          <div key={id} className="relative">
             <button
-              className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+              className={`group flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
                 active
-                  ? 'bg-accent text-foreground shadow-sm'
+                  ? 'bg-accent text-foreground shadow-sm ring-1 ring-violet-500/30'
                   : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
               }`}
-              style={{ paddingLeft: 8 + depth * 16 }}
+              style={{ paddingLeft: 8 + depth * 22 }}
               onClick={() => onSelect(group)}
             >
               {childCount > 0 ? (
                 <span
-                  className="h-4 w-4 flex items-center justify-center shrink-0 cursor-pointer"
+                  className="h-4 w-4 flex items-center justify-center shrink-0 cursor-pointer rounded hover:bg-accent"
                   onClick={(e) => { e.stopPropagation(); onToggle(id); }}
                 >
-                  <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                  {isExpanded
+                    ? <ChevronDown className="h-3 w-3 transition-transform" />
+                    : <ChevronRight className="h-3 w-3 transition-transform" />}
                 </span>
               ) : (
-                <span className="w-4 shrink-0" />
+                <span className="w-4 shrink-0 flex items-center justify-center">
+                  <CornerDownRight className="h-3 w-3 text-muted-foreground/50" />
+                </span>
               )}
               {childCount > 0 ? (
-                isExpanded ? <FolderOpen className="h-3.5 w-3.5 shrink-0 text-amber-500" /> : <Folder className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                isExpanded
+                  ? <FolderOpen className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  : <Folder className="h-3.5 w-3.5 shrink-0 text-amber-500" />
               ) : (
-                <GitBranch className="h-3.5 w-3.5 shrink-0" />
+                <GitBranch className="h-3.5 w-3.5 shrink-0 text-sky-500" />
               )}
-              <span className="truncate">{groupLabel(group)}</span>
-              {childCount > 0 ? <Badge variant="secondary" className="ml-auto text-[9px]">{childCount}</Badge> : null}
-              {group.type ? <Badge variant="outline" className="text-[9px]">{group.type}</Badge> : null}
+              <span className="truncate font-medium">{groupLabel(group)}</span>
+              {group.type ? <Badge variant="outline" className="text-[9px] ml-1">{group.type}</Badge> : null}
+              {childCount > 0 ? (
+                <Badge variant="secondary" className="ml-auto text-[9px] tabular-nums">{childCount}</Badge>
+              ) : null}
             </button>
             {isExpanded && childCount > 0 ? (
               <GroupTreeRows
@@ -169,10 +205,106 @@ function GroupTreeRows({
                 onToggle={onToggle}
               />
             ) : null}
+            {/* Vertical connector line for siblings below */}
+            {!isLast && depth > 0 ? (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-0 top-0 bottom-0 border-l border-muted/40"
+                style={{ marginLeft: 8 + (depth - 1) * 22 + 11 }}
+              />
+            ) : null}
           </div>
         );
       })}
     </>
+  );
+}
+
+// ─── Nested card visualization for "下级组织" ────────────────────────────
+function NestedChildCards({
+  parentId,
+  depth,
+  childrenMap,
+  groupMap,
+  selectedId,
+  onSelect,
+  rootLabel,
+}: {
+  parentId: string;
+  depth: number;
+  childrenMap: Map<string, IamGroup[]>;
+  groupMap: Map<string, IamGroup>;
+  selectedId: string;
+  onSelect: (group: IamGroup) => void;
+  rootLabel: string;
+}) {
+  const children = childrenMap.get(parentId) || [];
+  if (children.length === 0) {
+    return depth === 0 ? (
+      <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+        当前节点下暂无子组织。点击上方"新建子组织"开始构建层级。
+      </div>
+    ) : null;
+  }
+  return (
+    <div className={depth === 0 ? 'space-y-2' : 'mt-2 space-y-2'}>
+      {children.map((group) => {
+        const id = groupID(group);
+        const active = selectedId === id;
+        const grandKids = childrenMap.get(id)?.length || 0;
+        const path = buildGroupPath(group, groupMap, rootLabel).join(' / ');
+        return (
+          <div
+            key={id}
+            className={`rounded-md border transition-colors ${
+              active ? 'border-violet-500 bg-violet-50/50 dark:bg-violet-950/20' : 'border-border bg-card/40'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onSelect(group)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left"
+            >
+              <span
+                className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/60 text-[10px] font-mono text-muted-foreground shrink-0"
+                style={{ marginLeft: Math.min(depth, 4) * 6 }}
+              >
+                L{depth + 1}
+              </span>
+              {grandKids > 0 ? (
+                <Folder className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              ) : (
+                <GitBranch className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium truncate">{groupLabel(group)}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{path}</div>
+              </div>
+              {group.type ? <Badge variant="outline" className="text-[9px]">{group.type}</Badge> : null}
+              {grandKids > 0 ? (
+                <Badge variant="secondary" className="text-[9px] tabular-nums">{grandKids} 子</Badge>
+              ) : null}
+              {group.users?.length ? (
+                <Badge variant="outline" className="text-[9px] tabular-nums">{group.users.length} 人</Badge>
+              ) : null}
+            </button>
+            {grandKids > 0 ? (
+              <div className="border-t border-dashed border-border/60 px-3 pb-2">
+                <NestedChildCards
+                  parentId={id}
+                  depth={depth + 1}
+                  childrenMap={childrenMap}
+                  groupMap={groupMap}
+                  selectedId={selectedId}
+                  onSelect={onSelect}
+                  rootLabel={rootLabel}
+                />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -183,13 +315,17 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const [form, setForm] = useState<OrganizationForm>(emptyForm);
   const [editing, setEditing] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'tree' | 'cards'>('tree');
 
   const zoneId = identityOrgProp?.trim() || defaultZoneFromPrincipal(me);
   const { data: zone } = useIamDirectoryOrganization(zoneId);
   const { data, isLoading, isFetching, error, refetch } = useIamDirectoryGroups(zoneId);
   const selectedId = groupID(selectedGroup);
   const { data: allUsersData } = useIamExternalUsers(zoneId, { pageSize: 500 });
-  const { data: selectedGroupUsersData, refetch: refetchSelectedGroupUsers } = useIamExternalUsers(zoneId, selectedId ? { groupId: selectedId, pageSize: 500 } : { pageSize: 0 });
+  const { data: selectedGroupUsersData, refetch: refetchSelectedGroupUsers } = useIamExternalUsers(
+    zoneId,
+    selectedId ? { groupId: selectedId, pageSize: 500 } : { pageSize: 0 },
+  );
   const createGroup = useIamCreateGroup();
   const updateGroup = useIamUpdateGroup();
   const deleteGroup = useIamDeleteGroup();
@@ -209,6 +345,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const selectedGroupUsers = selectedGroup ? (selectedGroupUsersData?.users || []) : [];
   const selectedGroupUserIds = new Set(selectedGroupUsers.map(userID).filter(Boolean));
   const assignableUsers = allUsers.filter((user) => !selectedGroupUserIds.has(userID(user)));
+
+  // Auto-expand root-level groups on first load so the hierarchy is visible.
+  useEffect(() => {
+    if (rootGroups.length > 0 && expandedIds.size === 0) {
+      setExpandedIds(new Set(rootGroups.map(groupID).filter(Boolean)));
+    }
+  }, [rootGroups, expandedIds.size]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -251,6 +394,12 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     setSelectedUserId('');
     setForm({ name: group.name || '', displayName: group.displayName || '', type: group.type || 'Physical' });
     setEditing(false);
+    // Auto-expand the selected group so its children are visible.
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.add(groupID(group));
+      return next;
+    });
   };
 
   const handleCreate = async () => {
@@ -338,17 +487,27 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     }
   };
 
+  // Build the flattened descendants table for the "下级组织（含子级）" view
+  const descendantRows = useMemo(() => {
+    if (!selectedId) {
+      return rootGroups.map((g) => ({ group: g, depth: 0 }));
+    }
+    return collectDescendants(selectedId, childrenMap);
+  }, [selectedId, rootGroups, childrenMap]);
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
       <div className="space-y-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Building2 className="h-4 w-4" />
+              <Network className="h-4 w-4" />
               组织结构
             </CardTitle>
-            <CardDescription className="text-xs">
-              用户源不是组织；无父组织的节点是顶级组织，其他节点都是某个父组织的子组织。底层仍使用 Casdoor 多级 group 承载。
+            <CardDescription className="text-xs leading-relaxed">
+              用户源作为根节点，下方是多层级的组织树。
+              <span className="text-foreground/70"> 父子关系通过 Casdoor 多级 group 承载。</span>
+              点击节点查看详情，点击三角展开/折叠子组织。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -358,20 +517,26 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               <Metric label="总组织" value={groups.length} />
             </div>
 
-            <div className="rounded-md border p-2">
+            <div className="rounded-md border bg-muted/20 p-2">
+              {/* Root node (user source) */}
               <button
-                className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium ${!selectedGroup ? 'bg-accent text-foreground shadow-sm' : 'bg-muted hover:bg-accent/60'}`}
+                className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium ${
+                  !selectedGroup
+                    ? 'bg-accent text-foreground shadow-sm ring-1 ring-violet-500/30'
+                    : 'bg-muted hover:bg-accent/60'
+                }`}
                 onClick={handleSelectRoot}
               >
-                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-violet-500" />
                 <span className="truncate">{rootLabel}</span>
-                <Badge variant="secondary" className="ml-auto text-[9px]">用户源</Badge>
+                <Badge variant="outline" className="ml-auto text-[9px]">用户源 / Zone</Badge>
               </button>
               {groups.length > 0 ? (
                 <div className="flex items-center gap-1 mb-1 px-1">
                   <button onClick={expandAll} className="text-[10px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-accent/60">展开全部</button>
                   <span className="text-[10px] text-muted-foreground">/</span>
                   <button onClick={collapseAll} className="text-[10px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-accent/60">折叠全部</button>
+                  <span className="ml-auto text-[10px] text-muted-foreground/70">{expandedIds.size} 已展开</span>
                 </div>
               ) : null}
               {isLoading ? (
@@ -382,15 +547,17 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               ) : groups.length === 0 ? (
                 <div className="px-2 py-6 text-center text-xs text-muted-foreground">暂无组织</div>
               ) : (
-                <GroupTreeRows
-                  parentId=""
-                  depth={0}
-                  childrenMap={childrenMap}
-                  selectedId={selectedId}
-                  onSelect={handleSelect}
-                  expandedIds={expandedIds}
-                  onToggle={toggleExpand}
-                />
+                <div className="max-h-[420px] overflow-y-auto pr-1">
+                  <GroupTreeRows
+                    parentId=""
+                    depth={0}
+                    childrenMap={childrenMap}
+                    selectedId={selectedId}
+                    onSelect={handleSelect}
+                    expandedIds={expandedIds}
+                    onToggle={toggleExpand}
+                  />
+                </div>
               )}
             </div>
 
@@ -412,11 +579,24 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between text-sm">
-              <span>{selectedGroup ? '组织管理' : '用户源根节点'}</span>
+              <span className="flex items-center gap-2">
+                <Layers className="h-4 w-4" />
+                {selectedGroup ? '组织管理' : '用户源根节点'}
+              </span>
               <Badge variant="secondary">{groups.length}</Badge>
             </CardTitle>
             <CardDescription className="text-xs">
-              当前路径：{selectedPath.join(' / ')}。未选中组织时，新建的是无父组织的顶级组织；选中组织后，新建的是它的子组织。
+              <span className="text-foreground/70">当前路径：</span>
+              <span className="font-mono text-[11px]">
+                {selectedPath.map((p, i) => (
+                  <span key={i}>
+                    {i > 0 ? <span className="text-muted-foreground/60"> › </span> : null}
+                    {p}
+                  </span>
+                ))}
+              </span>
+              <br />
+              未选中组织时，新建的是无父组织的顶级组织；选中组织后，新建的是它的子组织。
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -455,9 +635,16 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">成员管理</CardTitle>
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>成员管理</span>
+              {selectedGroup ? (
+                <Badge variant="outline" className="text-[10px]">{selectedGroupUsers.length} 人</Badge>
+              ) : null}
+            </CardTitle>
             <CardDescription className="text-xs">
-              {selectedGroup ? `把用户加入 ${groupLabel(selectedGroup)}，或从该组织移除。` : '先在左侧选择一个组织，再管理成员。'}
+              {selectedGroup
+                ? `把用户加入 ${groupLabel(selectedGroup)}，或从该组织移除。`
+                : '先在左侧选择一个组织，再管理成员。'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -518,44 +705,94 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">下级组织</CardTitle>
+            <CardTitle className="text-sm flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <Network className="h-4 w-4" />
+                {selectedGroup ? `${groupLabel(selectedGroup)} 的下级组织` : '用户源下的顶级组织'}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant={viewMode === 'tree' ? 'default' : 'outline'}
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => setViewMode('tree')}
+                >
+                  树状视图
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === 'cards' ? 'default' : 'outline'}
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => setViewMode('cards')}
+                >
+                  嵌套卡片
+                </Button>
+              </div>
+            </CardTitle>
             <CardDescription className="text-xs">
-              {selectedGroup ? `显示 ${groupLabel(selectedGroup)} 下的直接子组织` : '显示当前用户源下的顶级组织'}
+              {selectedGroup
+                ? `显示 ${groupLabel(selectedGroup)} 下所有层级的子孙组织（共 ${descendantRows.length} 个）。`
+                : `显示当前用户源下所有层级的组织（共 ${descendantRows.length} 个）。`}
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">名称</TableHead>
-                  <TableHead className="text-xs">显示名</TableHead>
-                  <TableHead className="text-xs">层级路径</TableHead>
-                  <TableHead className="text-xs">类型</TableHead>
-                  <TableHead className="text-xs">成员数</TableHead>
-                  <TableHead className="text-xs">子组织数</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {childGroups.length === 0 ? (
+          <CardContent>
+            {viewMode === 'cards' ? (
+              <NestedChildCards
+                parentId={selectedId}
+                depth={0}
+                childrenMap={childrenMap}
+                groupMap={groupMap}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                rootLabel={rootLabel}
+              />
+            ) : descendantRows.length === 0 ? (
+              <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                暂无下级组织。点击上方"新建子组织"开始构建层级。
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">暂无下级组织</TableCell>
+                    <TableHead className="text-xs">层级</TableHead>
+                    <TableHead className="text-xs">名称</TableHead>
+                    <TableHead className="text-xs">显示名</TableHead>
+                    <TableHead className="text-xs">层级路径</TableHead>
+                    <TableHead className="text-xs">类型</TableHead>
+                    <TableHead className="text-xs">成员数</TableHead>
+                    <TableHead className="text-xs">子组织数</TableHead>
                   </TableRow>
-                ) : childGroups.map((group) => {
-                  const id = groupID(group);
-                  const path = buildGroupPath(group, groupMap, rootLabel).join(' / ');
-                  return (
-                    <TableRow key={id} className="cursor-pointer" onClick={() => handleSelect(group)}>
-                      <TableCell className="text-xs font-medium">{group.name || group.id}</TableCell>
-                      <TableCell className="text-xs">{group.displayName || '-'}</TableCell>
-                      <TableCell className="max-w-[360px] truncate text-xs text-muted-foreground">{path}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-[10px]">{group.type || '-'}</Badge></TableCell>
-                      <TableCell className="text-xs">{group.users?.length || 0}</TableCell>
-                      <TableCell className="text-xs">{childrenMap.get(id)?.length || 0}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {descendantRows.map(({ group, depth }) => {
+                    const id = groupID(group);
+                    const path = buildGroupPath(group, groupMap, rootLabel).join(' / ');
+                    return (
+                      <TableRow
+                        key={id}
+                        className={`cursor-pointer ${selectedId === id ? 'bg-accent/40' : ''}`}
+                        onClick={() => handleSelect(group)}
+                      >
+                        <TableCell className="text-xs">
+                          <Badge variant="outline" className="text-[9px] font-mono">L{depth + 1}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">
+                          <span style={{ paddingLeft: depth * 12 }} className="inline-flex items-center gap-1">
+                            {depth > 0 ? <CornerDownRight className="h-3 w-3 text-muted-foreground/60" /> : null}
+                            {group.name || group.id}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs">{group.displayName || '-'}</TableCell>
+                        <TableCell className="max-w-[360px] truncate text-xs text-muted-foreground">{path}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px]">{group.type || '-'}</Badge></TableCell>
+                        <TableCell className="text-xs">{group.users?.length || 0}</TableCell>
+                        <TableCell className="text-xs">{childrenMap.get(id)?.length || 0}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

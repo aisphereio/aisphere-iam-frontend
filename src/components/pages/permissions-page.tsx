@@ -275,6 +275,8 @@ export function PermissionsPage() {
         </Button>
       </div>
 
+      <PermissionModelHero stats={modelStats} schemaVersion={schemaQuery.data?.version} />
+
       <ModelOverview stats={modelStats} activeRelationshipCount={resourceRelationships.length} schemaVersion={schemaQuery.data?.version} />
 
       <Tabs defaultValue={TAB_VALUE_RESOURCE} className="space-y-4">
@@ -467,6 +469,11 @@ function ResourceAuthorizationPanel({
               <Field label="主体关系" value={relationship.subject.relation || ''} onChange={(relation) => setRelationship({ ...relationship, subject: { ...relationship.subject, relation } })} placeholder="组授权常填 member，可空" />
             </div>
             <div className="rounded-md bg-muted px-2 py-1 text-[11px] font-mono break-all">{relationshipPreview}</div>
+            {/* 可视化：当前正在编辑的授权关系 */}
+            <div>
+              <div className="text-[10px] font-medium text-muted-foreground mb-1">当前编辑的授权关系</div>
+              <GrantFlowVisualization relationship={relationship} />
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={onWrite} disabled={writePending}>添加授权</Button>
               <Button size="sm" variant="outline" onClick={onFillCurrentUserAsOwner}>当前用户设为用户源 Owner</Button>
@@ -797,6 +804,9 @@ function ResourceDetail({ resource }: { resource: FriendlyResourceModel }) {
         <MiniStat label="继承入口" value={resource.inheritedRelations.length} />
       </div>
 
+      {/* 资源继承链可视化 */}
+      <ResourceInheritanceDiagram resource={resource} />
+
       {resource.inheritedRelations.length > 0 ? (
         <div>
           <div className="text-xs font-medium mb-2">继承路径</div>
@@ -1065,4 +1075,143 @@ function summarizeModels(resources: FriendlyResourceModel[]): ModelStats {
     acc.inheritanceEdges += resource.inheritedRelations.length + resource.permissions.reduce((sum, permission) => sum + permission.inherited.length, 0);
     return acc;
   }, { resources: 0, relations: 0, permissions: 0, roles: 0, inheritanceEdges: 0 });
+}
+// ─── 权限模型可视化组件 ─────────────────────────────────────────────
+
+/** 顶部"权限模型概览"可视化：用流程图形式展示主体 → 关系 → 资源 → 权限 的整体结构 */
+function PermissionModelHero({ stats, schemaVersion }: { stats: ModelStats; schemaVersion?: string }) {
+  const nodes = [
+    { key: 'subject', label: '主体', sub: 'User / Group / Agent', icon: <UserRound className="h-4 w-4" />, color: 'from-sky-500/20 to-blue-500/20 text-sky-600 dark:text-sky-400' },
+    { key: 'relation', label: '关系 / 角色', sub: `${stats.relations} 个关系 · ${stats.roles} 个角色模板`, icon: <GitBranch className="h-4 w-4" />, color: 'from-violet-500/20 to-fuchsia-500/20 text-violet-600 dark:text-violet-400' },
+    { key: 'resource', label: '资源', sub: `${stats.resources} 种资源类型`, icon: <Database className="h-4 w-4" />, color: 'from-amber-500/20 to-orange-500/20 text-amber-600 dark:text-amber-400' },
+    { key: 'permission', label: '权限', sub: `${stats.permissions} 项可检查权限`, icon: <ListChecks className="h-4 w-4" />, color: 'from-emerald-500/20 to-green-500/20 text-emerald-600 dark:text-emerald-400' },
+  ];
+
+  return (
+    <Card className="border-violet-500/30 bg-gradient-to-br from-violet-500/5 via-transparent to-fuchsia-500/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-violet-500" />
+          权限模型概览
+          {schemaVersion ? <Badge variant="outline" className="text-[10px]">Schema v{schemaVersion}</Badge> : null}
+        </CardTitle>
+        <CardDescription className="text-xs leading-relaxed">
+          整个权限系统按
+          <span className="font-medium text-foreground/80"> 主体 → 关系 → 资源 → 权限 </span>
+          的链路工作。下方四个节点构成完整授权链路，理解这条链路即可完成 90% 的日常权限管理。
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-stretch">
+          {nodes.map((node, idx) => (
+            <div key={node.key} className="relative">
+              <div className={`h-full rounded-lg border bg-gradient-to-br ${node.color} p-3 flex flex-col gap-1`}>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-background/60">
+                    {node.icon}
+                  </div>
+                  <div className="text-xs font-semibold">{node.label}</div>
+                </div>
+                <div className="text-[10px] text-muted-foreground leading-relaxed">{node.sub}</div>
+              </div>
+              {idx < nodes.length - 1 ? (
+                <div className="hidden md:flex absolute top-1/2 -right-3 -translate-y-1/2 z-10 items-center justify-center">
+                  <div className="h-5 w-5 rounded-full bg-background border border-violet-500/40 flex items-center justify-center">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]">
+          <div className="rounded-md border border-dashed border-sky-500/30 bg-sky-500/5 p-2">
+            <div className="font-medium text-sky-700 dark:text-sky-300 mb-0.5">① 主体是谁</div>
+            <div className="text-muted-foreground">用户、组织、Agent、Service。每个主体有唯一 ID。</div>
+          </div>
+          <div className="rounded-md border border-dashed border-violet-500/30 bg-violet-500/5 p-2">
+            <div className="font-medium text-violet-700 dark:text-violet-300 mb-0.5">② 通过什么关系</div>
+            <div className="text-muted-foreground">owner / admin / member / viewer 等关系，或角色模板。</div>
+          </div>
+          <div className="rounded-md border border-dashed border-amber-500/30 bg-amber-500/5 p-2">
+            <div className="font-medium text-amber-700 dark:text-amber-300 mb-0.5">③ 访问什么资源</div>
+            <div className="text-muted-foreground">zone / group / project / skill / agent 等资源类型实例。</div>
+          </div>
+        </div>
+        <div className="mt-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2 text-[11px]">
+          <span className="font-medium text-emerald-700 dark:text-emerald-300">④ 最终能做什么：</span>
+          <span className="text-muted-foreground"> view / manage / execute / deploy 等可检查的权限点。系统按关系和继承规则自动推导允许或拒绝。</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** 资源继承链示意：展示 zone → group → resource 的层级继承关系 */
+function ResourceInheritanceDiagram({ resource }: { resource: FriendlyResourceModel }) {
+  const inherited = resource.inheritedRelations;
+  if (inherited.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed p-2 text-[11px] text-muted-foreground">
+        当前资源没有继承入口，授权完全来自直接关系。
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border bg-muted/20 p-2">
+      <div className="text-[10px] font-medium text-muted-foreground mb-1.5">资源继承链</div>
+      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+        {inherited.map((rel, idx) => (
+          <div key={rel.key} className="flex items-center gap-1.5">
+            <span className="rounded-md border bg-background px-1.5 py-0.5">
+              <span className="text-muted-foreground">{rel.label}</span>
+              <span className="ml-1 font-mono text-[9px] text-muted-foreground/70">#{rel.key}</span>
+            </span>
+            {idx < inherited.length - 1 ? (
+              <span className="text-muted-foreground/40">→</span>
+            ) : null}
+          </div>
+        ))}
+        <span className="text-muted-foreground/40">→</span>
+        <span className="rounded-md border border-violet-500/40 bg-violet-500/10 px-1.5 py-0.5 font-medium">
+          {resource.label}
+        </span>
+      </div>
+      <div className="mt-1.5 text-[10px] text-muted-foreground leading-relaxed">
+        继承入口意味着：在父级资源上授予的权限会自动向下传递到当前资源。例如在 zone 上是 owner，则在 zone 内的 group 上自动获得对应权限。
+      </div>
+    </div>
+  );
+}
+
+/** 授权关系可视化：把一个 IamRelationship 渲染成可视的"主体 → 关系 → 资源"图 */
+function GrantFlowVisualization({ relationship }: { relationship: IamRelationship }) {
+  return (
+    <div className="rounded-md border bg-gradient-to-br from-muted/40 to-transparent p-3">
+      <div className="grid grid-cols-3 gap-2 items-center text-center">
+        <div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-2">
+          <div className="text-[10px] font-medium text-sky-700 dark:text-sky-300 mb-0.5">主体 Subject</div>
+          <div className="font-mono text-[10px] break-all">{subjectToText(relationship.subject)}</div>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <div className="text-[10px] text-muted-foreground">通过</div>
+          <div className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">
+            {relationLabel(relationship.relation)}
+          </div>
+          <div className="font-mono text-[9px] text-muted-foreground/70">#{relationship.relation}</div>
+          <svg width="100%" height="8" viewBox="0 0 100 8" preserveAspectRatio="none">
+            <line x1="0" y1="4" x2="100" y2="4" stroke="currentColor" strokeWidth="1" className="text-violet-500/40" strokeDasharray="2 2" />
+            <polygon points="100,4 95,1 95,7" fill="currentColor" className="text-violet-500/40" />
+          </svg>
+        </div>
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2">
+          <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300 mb-0.5">资源 Resource</div>
+          <div className="font-mono text-[10px] break-all">{relationship.resource.type}:{relationship.resource.id}</div>
+        </div>
+      </div>
+    </div>
+  );
 }

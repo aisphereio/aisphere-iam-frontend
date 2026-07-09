@@ -146,6 +146,22 @@ function OrganizationsTab() {
 
   return (
     <div className="space-y-4">
+      {/* 平台组织说明：明确层级关系在 用户组 中维护 */}
+      <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3 text-xs">
+        <div className="flex items-start gap-2">
+          <Building2 className="h-4 w-4 mt-0.5 text-violet-500 shrink-0" />
+          <div className="space-y-1">
+            <div className="font-medium text-foreground/80">平台组织（CP Organizations）是租户级别的资源</div>
+            <div className="text-muted-foreground leading-relaxed">
+              每个 CP Organization 对应一个独立的租户，本身是扁平的。如果你需要管理组织内部的上下级层级关系
+              （例如：平台 → 业务线 → 团队 → 小组），请前往侧边栏
+              <span className="font-medium text-foreground/80">「身份目录 → 组织与用户组」</span>
+              ，那里有完整的多级组织树、嵌套卡片和成员管理界面。
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
@@ -446,15 +462,33 @@ function GrantsTab() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-2 space-y-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span>{t('grants.title')}</span>
-              <Badge variant="secondary">{roleTemplates.length}</Badge>
-            </CardTitle>
-          </CardHeader>
+    <div className="space-y-4">
+      {/* 概念解释卡：理清 Role Template / Grant / Relationship 的关系 */}
+      <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3">
+        <div className="flex items-start gap-2">
+          <KeyRound className="h-4 w-4 mt-0.5 text-violet-500 shrink-0" />
+          <div className="space-y-1 text-xs">
+            <div className="font-medium text-foreground/80">授权三件套：角色模板 → 授权 → 关系</div>
+            <div className="text-muted-foreground leading-relaxed">
+              <span className="font-mono text-[10px] bg-background/60 px-1 py-0.5 rounded">Role Template</span> 是可复用的角色定义（例如 "skill:editor"）；
+              <span className="font-mono text-[10px] bg-background/60 px-1 py-0.5 rounded">Grant</span> 是把某个角色分配给主体（用户/组）的一次操作；
+              <span className="font-mono text-[10px] bg-background/60 px-1 py-0.5 rounded">Relationship</span> 是底层 SpiceDB tuple，最终决定权限是否放行。
+              下方"角色模板"列出可分配角色；"活跃授权"列出当前已分配的记录。需要查看更细粒度的权限模型请前往
+              <span className="font-medium text-foreground/80">「权限治理 → 权限控制台」</span>。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>{t('grants.title')}</span>
+                <Badge variant="secondary">{roleTemplates.length}</Badge>
+              </CardTitle>
+            </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -583,6 +617,7 @@ function GrantsTab() {
             </Button>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
