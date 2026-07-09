@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { iamAuthApi } from '@/lib/api';
 import { buildGatewayLogoutUrl, clearGatewaySessionConfirmed } from '@/lib/api/client';
@@ -59,8 +60,8 @@ export function useMe(enabled = true) {
 
 /** Logout through the IAM backend logout endpoint. */
 export function useLogout() {
-  return async () => {
+  return React.useCallback(async () => {
     clearGatewaySessionConfirmed();
     window.location.href = buildGatewayLogoutUrl();
-  };
+  }, []);
 }

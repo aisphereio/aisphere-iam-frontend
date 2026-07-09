@@ -99,11 +99,13 @@ export function AppShell({ children }: AppShellProps) {
     clearGatewaySessionConfirmed();
     setLoginConfirmExpired(true);
     setLoginStartedAt(null);
+    setCanProbePrincipal(false);
   }, [loginConfirmExpired, loginStartedAt, principalError]);
 
   useEffect(() => {
     if (!principalError || loginStartedAt) return;
     clearGatewaySessionConfirmed();
+    setCanProbePrincipal(false);
   }, [loginStartedAt, principalError]);
 
   if (!canProbePrincipal) {
