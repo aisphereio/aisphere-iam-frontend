@@ -119,26 +119,29 @@ export function PermissionsPage() {
   const resourceTypeOptions = useMemo(() => resourceModels.map((resource) => ({ value: resource.type, label: `${resource.label} (${resource.type})` })), [resourceModels]);
   const relationshipPreview = useMemo(() => relationshipToText(relationship), [relationship]);
 
-  const handleSelectResource = (resource: FriendlyResourceModel) => {
-    const resourceId = DEFAULT_RESOURCE_ID[resource.type] || '';
-    const relation = firstWritableRelation(resource) || 'owner';
-    const permission = resource.permissions[0]?.key || 'view';
-    setSelectedResourceType(resource.type);
-    setResourceAuth({ resourceType: resource.type, resourceId });
+  const applyResourceSelection = (resourceType: string, resourceId?: string) => {
+    const resource = resourceModels.find((item) => item.type === resourceType);
+    const nextResourceId = resourceId ?? DEFAULT_RESOURCE_ID[resourceType] ?? resourceAuth.resourceId;
+    const nextRelation = firstWritableRelation(resource) || relationship.relation || 'owner';
+    const nextPermission = resource?.permissions[0]?.key || explainForm.permission || 'view';
+    setSelectedResourceType(resourceType);
+    setResourceAuth({ resourceType, resourceId: nextResourceId });
     setRelationship((prev) => ({
       ...prev,
-      resource: { type: resource.type, id: resourceId },
-      relation,
+      resource: { type: resourceType, id: nextResourceId },
+      relation: nextRelation,
     }));
     setSubjectView((prev) => ({
       ...prev,
-      resourceType: resource.type,
-      resourceId,
-      permissions: resource.permissions.map((p) => p.key).join(','),
+      resourceType,
+      resourceId: nextResourceId,
+      permissions: resource?.permissions.map((p) => p.key).join(',') || prev.permissions,
     }));
-    setExplainForm((prev) => ({ ...prev, resourceType: resource.type, resourceId, permission }));
-    setRawFilter((prev) => ({ ...prev, resourceType: resource.type, resourceId }));
+    setExplainForm((prev) => ({ ...prev, resourceType, resourceId: nextResourceId, permission: nextPermission }));
+    setRawFilter((prev) => ({ ...prev, resourceType, resourceId: nextResourceId }));
   };
+
+  const handleSelectResource = (resource: FriendlyResourceModel) => applyResourceSelection(resource.type);
 
   const handleValidate = async () => {
     try {
@@ -297,6 +300,7 @@ export function PermissionsPage() {
             writePending={writeRelationship.isPending}
             deletePending={deleteRelationships.isPending}
             onSelectResource={handleSelectResource}
+            onChangeResourceType={(resourceType) => applyResourceSelection(resourceType)}
             onWrite={handleWriteRelationship}
             onDelete={handleDeleteRelationship}
             onFillCurrentUserAsOwner={fillCurrentUserAsZoneOwner}
@@ -373,6 +377,7 @@ function ResourceAuthorizationPanel({
   writePending,
   deletePending,
   onSelectResource,
+  onChangeResourceType,
   onWrite,
   onDelete,
   onFillCurrentUserAsOwner,
@@ -390,6 +395,7 @@ function ResourceAuthorizationPanel({
   writePending: boolean;
   deletePending: boolean;
   onSelectResource: (resource: FriendlyResourceModel) => void;
+  onChangeResourceType: (resourceType: string) => void;
   onWrite: () => void;
   onDelete: (relationship: IamRelationship) => void;
   onFillCurrentUserAsOwner: () => void;
@@ -441,10 +447,7 @@ function ResourceAuthorizationPanel({
                 value={resourceAuth.resourceType}
                 fallbackValue={resourceAuth.resourceType}
                 options={resourceTypeOptions}
-                onChange={(resourceType) => {
-                  setResourceAuth({ ...resourceAuth, resourceType, resourceId: DEFAULT_RESOURCE_ID[resourceType] || resourceAuth.resourceId });
-                  setRelationship({ ...relationship, resource: { ...relationship.resource, type: resourceType, id: DEFAULT_RESOURCE_ID[resourceType] || relationship.resource.id } });
-                }}
+                onChange={onChangeResourceType}
               />
               <Field label="资源 ID" value={resourceAuth.resourceId} onChange={(resourceId) => {
                 setResourceAuth({ ...resourceAuth, resourceId });
