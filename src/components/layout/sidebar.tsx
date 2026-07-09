@@ -35,7 +35,7 @@ const navSections: NavSection[] = [
     icon: <Users className="h-3.5 w-3.5" />,
     items: [
       { key: 'users', label: '本地用户', hint: '查看 Casdoor / Gateway 注入后的用户身份', icon: <Users className="h-4 w-4" /> },
-      { key: 'groups', label: '组织与用户组', hint: '组织根节点 + 多级用户组树', icon: <GitBranch className="h-4 w-4" /> },
+      { key: 'groups', label: '组织管理', hint: '组织根节点 + 多级用户组树', icon: <GitBranch className="h-4 w-4" /> },
     ],
   },
   {
