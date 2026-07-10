@@ -1,0 +1,92 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: iam-console-oidc
+  namespace: aisphere
+  labels:
+    app.kubernetes.io/name: aisphere-iam-frontend
+    app.kubernetes.io/part-of: aisphere
+spec:
+  # Protect both the frontend route and the authenticated IAM API routes generated
+  # by the backend repository. Apply the backend deploy/generated manifests first.
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: iam-console
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: i-a-m-auth-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: i-a-m-directory-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: i-a-m-directory-projection-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: i-a-m-identity-admin-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: i-a-m-permission-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: i-a-m-authorization-admin-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: project-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: resource-service-authenticated
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: grant-service-authenticated
+  oidc:
+    provider:
+      issuer: https://casdoor.weagent.cc
+    clientID: aisphere-iam-web
+    clientSecret:
+      name: casdoor-iam-web-oidc
+    redirectURL: https://iam.weagent.cc/oauth2/callback
+    logoutPath: /logout
+    scopes:
+      - openid
+      - profile
+      - email
+    refreshToken: true
+    forwardAccessToken: true
+    passThroughAuthHeader: true
+    cookieNames:
+      accessToken: Aisphere-IAM-AccessToken
+      idToken: Aisphere-IAM-IDToken
+  jwt:
+    providers:
+      - name: casdoor
+        issuer: https://casdoor.weagent.cc
+        audiences:
+          - aisphere-iam-web
+        remoteJWKS:
+          uri: https://casdoor.weagent.cc/.well-known/jwks
+        # The browser OIDC flow stores the access token in this cookie. JWT
+        # validation must read the same cookie before claimToHeaders can run.
+        extractFrom:
+          cookies:
+            - Aisphere-IAM-AccessToken
+        claimToHeaders:
+          - claim: sub
+            header: x-aisphere-external-sub
+          - claim: email
+            header: x-aisphere-external-email
+          - claim: name
+            header: x-aisphere-external-name
+          - claim: preferred_username
+            header: x-aisphere-external-username
+          - claim: iss
+            header: x-aisphere-external-issuer
+          - claim: owner
+            header: x-aisphere-external-owner
+          - claim: id
+            header: x-aisphere-external-id
+          - claim: displayName
+            header: x-aisphere-external-display-name
+          - claim: scope
+            header: x-aisphere-external-scope

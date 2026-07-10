@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - service.yaml
+  - deployment.yaml
+  - httproute.yaml
+  - security-policy.yaml
+
+images:
+  - name: registry.cn-beijing.aliyuncs.com/ainfracn/aisphere-iam-frontend
+    newName: registry.cn-beijing.aliyuncs.com/ainfracn/aisphere-iam-frontend
+    newTag: latest
