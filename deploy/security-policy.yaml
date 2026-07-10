@@ -14,8 +14,9 @@ spec:
   oidc:
     provider:
       issuer: https://casdoor.weagent.cc:30723
-      # 指定端点跳过 OIDC discovery（域名解析问题）
-      authorizationEndpoint: http://casdoor.aisphere:8000/login/oauth/authorize
+      # authorizationEndpoint 是浏览器跳转地址，必须用外部可访问的 URL
+      authorizationEndpoint: https://casdoor.weagent.cc:30723/login/oauth/authorize
+      # tokenEndpoint 是 Envoy 服务端发起的，可以用集群内地址
       tokenEndpoint: http://casdoor.aisphere:8000/api/login/oauth/access_token
     clientID: aisphere-iam-web
     clientSecret:
