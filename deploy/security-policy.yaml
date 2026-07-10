@@ -21,7 +21,7 @@ spec:
     clientID: aisphere-iam
     clientSecret:
       name: casdoor-iam-oidc
-    redirectURL: https://iam.weagent.cc/oauth2/callback
+    redirectURL: https://iam.weagent.cc:30723/oauth2/callback
     logoutPath: /logout
     scopes:
       - openid
