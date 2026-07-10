@@ -7,7 +7,6 @@ metadata:
     app.kubernetes.io/name: aisphere-iam-frontend
     app.kubernetes.io/part-of: aisphere
 spec:
-  # 绑定聚合 HTTPRoute iam-console，该 Route 覆盖前端页面（/）和后端 API（/v1/iam/*）
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
@@ -15,11 +14,10 @@ spec:
   oidc:
     provider:
       issuer: https://casdoor.weagent.cc:30723
+      # 直接指定端点，跳过 OIDC discovery（域名解析问题）
       authorizationEndpoint: http://casdoor.aisphere:8000/login/oauth/authorize
-      backendRefs:
-        - name: casdoor
-          namespace: aisphere
-          port: 8000
+      tokenEndpoint: http://casdoor.aisphere:8000/api/login/oauth/access_token
+      jwksURL: http://casdoor.aisphere:8000/.well-known/jwks
     clientID: aisphere-iam-web
     clientSecret:
       name: casdoor-iam-web-oidc
@@ -42,9 +40,6 @@ spec:
           - aisphere-iam-web
         remoteJWKS:
           uri: http://casdoor.aisphere:8000/.well-known/jwks
-        extractFrom:
-          cookies:
-            - Aisphere-IAM-AccessToken
         claimToHeaders:
           - claim: sub
             header: x-aisphere-external-sub
