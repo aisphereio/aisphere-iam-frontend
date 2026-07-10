@@ -29,6 +29,7 @@ spec:
       - email
     refreshToken: true
     forwardAccessToken: true
+    passThroughAuthHeader: true
     cookieNames:
       accessToken: Aisphere-IAM-AccessToken
       idToken: Aisphere-IAM-IDToken
@@ -43,6 +44,9 @@ spec:
         extractFrom:
           cookies:
             - Aisphere-IAM-AccessToken
+          headers:
+            - name: Authorization
+              valuePrefix: "Bearer "
         claimToHeaders:
           - claim: sub
             header: x-aisphere-external-sub
