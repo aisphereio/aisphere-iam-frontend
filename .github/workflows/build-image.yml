@@ -13,14 +13,14 @@ on:
 
 permissions:
   contents: read
-
-env:
-  REGISTRY: registry.cn-beijing.aliyuncs.com
-  IMAGE_NAME: ainfracn/aisphere-iam-frontend
+  packages: write
 
 concurrency:
   group: frontend-image-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  IMAGE_NAME: aisphere-iam-frontend
 
 jobs:
   build:
@@ -54,7 +54,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ secrets.ALIYUN_REGISTRY }}
           username: ${{ secrets.ALIYUN_USERNAME }}
           password: ${{ secrets.ALIYUN_PASSWORD }}
 
@@ -62,7 +62,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ secrets.ALIYUN_REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-
@@ -86,6 +86,7 @@ jobs:
             NEXT_PUBLIC_GATEWAY_LOGOUT_URL=${{ vars.NEXT_PUBLIC_GATEWAY_LOGOUT_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
 
       - name: Publish build summary
         if: always()
@@ -93,7 +94,7 @@ jobs:
           {
             echo '### Frontend image build'
             echo
-            echo '- Repository: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}`'
+            echo '- Repository: `${{ secrets.ALIYUN_REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/${{ env.IMAGE_NAME }}`'
             echo '- Commit: `${{ github.sha }}`'
             echo '- Pushed: `${{ github.event_name != 'pull_request' }}`'
           } >> "$GITHUB_STEP_SUMMARY"
