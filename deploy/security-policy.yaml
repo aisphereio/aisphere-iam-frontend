@@ -14,7 +14,7 @@ spec:
       name: iam-console
   oidc:
     provider:
-      issuer: https://casdoor.weagent.cc
+      issuer: https://casdoor.weagent.cc:30723
     clientID: aisphere-iam-web
     clientSecret:
       name: casdoor-iam-web-oidc
@@ -32,11 +32,11 @@ spec:
   jwt:
     providers:
       - name: casdoor
-        issuer: https://casdoor.weagent.cc
+        issuer: https://casdoor.weagent.cc:30723
         audiences:
           - aisphere-iam-web
         remoteJWKS:
-          uri: https://casdoor.weagent.cc/.well-known/jwks
+          uri: https://casdoor.weagent.cc:30723/.well-known/jwks
         extractFrom:
           cookies:
             - Aisphere-IAM-AccessToken
