@@ -26,7 +26,6 @@ spec:
       - email
     refreshToken: true
     forwardAccessToken: true
-    passThroughAuthHeader: true
     cookieNames:
       accessToken: Aisphere-IAM-AccessToken
       idToken: Aisphere-IAM-IDToken
