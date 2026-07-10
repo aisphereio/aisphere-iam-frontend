@@ -15,7 +15,10 @@ spec:
   oidc:
     provider:
       issuer: https://casdoor.weagent.cc:30723
-      host: casdoor.aisphere:8000
+      backendRef:
+        name: casdoor
+        namespace: aisphere
+        port: 8000
     clientID: aisphere-iam-web
     clientSecret:
       name: casdoor-iam-web-oidc
