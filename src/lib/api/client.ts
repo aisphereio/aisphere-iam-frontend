@@ -24,7 +24,8 @@ export function apiUrl(path: string): string {
  * In local cross-origin development, navigate to the Gateway's protected URL.
  */
 export function buildGatewayLoginUrl(): string {
-  const loginUrl = process.env.NEXT_PUBLIC_GATEWAY_LOGIN_URL || '/app';
+  // 整个 IAM 前端在 OIDC 保护下，直接访问首页即可触发 Envoy 登录
+  const loginUrl = process.env.NEXT_PUBLIC_GATEWAY_LOGIN_URL || '/';
   return loginUrl.startsWith('/') ? apiUrl(loginUrl) : loginUrl;
 }
 
