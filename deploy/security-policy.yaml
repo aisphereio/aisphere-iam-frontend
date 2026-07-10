@@ -18,9 +18,9 @@ spec:
       authorizationEndpoint: https://casdoor.weagent.cc:30723/login/oauth/authorize
       # tokenEndpoint 是 Envoy 服务端发起的，可以用集群内地址
       tokenEndpoint: http://casdoor.aisphere:8000/api/login/oauth/access_token
-    clientID: aisphere-iam-web
+    clientID: aisphere-iam
     clientSecret:
-      name: casdoor-iam-web-oidc
+      name: casdoor-iam-oidc
     redirectURL: https://iam.weagent.cc/oauth2/callback
     logoutPath: /logout
     scopes:
