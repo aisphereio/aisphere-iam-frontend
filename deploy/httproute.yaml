@@ -11,11 +11,12 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: aisphere-gateway
-      namespace: aisphere-system
+      namespace: aisphere
       sectionName: https
   hostnames:
     - iam.weagent.cc
   rules:
+    # 前端 SPA 页面
     - matches:
         - path:
             type: PathPrefix
@@ -23,3 +24,11 @@ spec:
       backendRefs:
         - name: aisphere-iam-frontend
           port: 3000
+    # IAM 后端 API
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/iam
+      backendRefs:
+        - name: aisphere-iam
+          port: 18080

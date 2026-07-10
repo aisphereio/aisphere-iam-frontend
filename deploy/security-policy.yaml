@@ -7,39 +7,11 @@ metadata:
     app.kubernetes.io/name: aisphere-iam-frontend
     app.kubernetes.io/part-of: aisphere
 spec:
-  # Protect both the frontend route and the authenticated IAM API routes generated
-  # by the backend repository. Apply the backend deploy/generated manifests first.
+  # 绑定聚合 HTTPRoute iam-console，该 Route 覆盖前端页面（/）和后端 API（/v1/iam/*）
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: iam-console
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: i-a-m-auth-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: i-a-m-directory-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: i-a-m-directory-projection-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: i-a-m-identity-admin-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: i-a-m-permission-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: i-a-m-authorization-admin-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: project-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: resource-service-authenticated
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: grant-service-authenticated
   oidc:
     provider:
       issuer: https://casdoor.weagent.cc
@@ -66,8 +38,6 @@ spec:
           - aisphere-iam-web
         remoteJWKS:
           uri: https://casdoor.weagent.cc/.well-known/jwks
-        # The browser OIDC flow stores the access token in this cookie. JWT
-        # validation must read the same cookie before claimToHeaders can run.
         extractFrom:
           cookies:
             - Aisphere-IAM-AccessToken

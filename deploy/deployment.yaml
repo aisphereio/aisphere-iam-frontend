@@ -59,6 +59,15 @@ spec:
               value: 0.0.0.0
             - name: TZ
               value: Asia/Shanghai
+            # IAM API 地址（同域时留空，跨域时设置）
+            - name: NEXT_PUBLIC_IAM_URL
+              value: ""
+            # Envoy Gateway OIDC 登录地址（前端受保护路由）
+            - name: NEXT_PUBLIC_GATEWAY_LOGIN_URL
+              value: "https://iam.weagent.cc/"
+            # Envoy Gateway OIDC 登出地址
+            - name: NEXT_PUBLIC_GATEWAY_LOGOUT_URL
+              value: "https://iam.weagent.cc/logout"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
