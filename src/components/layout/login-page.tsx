@@ -6,7 +6,6 @@ import { AlertCircle, LoaderCircle, Sparkles, LogIn, Shield } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useT } from '@/lib/i18n';
-import { buildGatewayLoginUrl } from '@/lib/api/client';
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -31,9 +30,10 @@ const itemVariants: Variants = {
 interface LoginPageProps {
   state?: 'idle' | 'checking' | 'error';
   message?: string;
+  onLogin?: () => void;
 }
 
-export function LoginPage({ state = 'idle', message }: LoginPageProps) {
+export function LoginPage({ state = 'idle', message, onLogin }: LoginPageProps) {
   const t = useT();
   const isChecking = state === 'checking';
 
@@ -103,7 +103,7 @@ export function LoginPage({ state = 'idle', message }: LoginPageProps) {
                 className="h-11 w-full gap-2 text-base font-medium"
                 disabled={isChecking}
                 onClick={() => {
-                  window.location.assign(buildGatewayLoginUrl());
+                  if (onLogin) onLogin();
                 }}
               >
                 {isChecking ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}

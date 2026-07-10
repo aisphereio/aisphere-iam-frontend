@@ -3,7 +3,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { iamAuthApi } from '@/lib/api';
-import { buildGatewayLogoutUrl, clearGatewaySessionConfirmed } from '@/lib/api/client';
+import { buildGatewayLogoutUrl } from '@/lib/api/client';
 import type { IamPrincipal } from '@/lib/api/types';
 
 type GetMeReply = {
@@ -43,10 +43,6 @@ function unwrapPrincipal(value: IamPrincipal | GetMeReply): IamPrincipal {
 
 /**
  * Fetch the current user principal.
- *
- * Same-origin Gateway deployments can probe immediately. Local cross-origin
- * development should pass enabled=false until the user explicitly starts login,
- * otherwise Envoy OIDC redirects are triggered inside XHR requests to /me.
  */
 export function useMe(enabled = true) {
   return useQuery({
@@ -58,10 +54,9 @@ export function useMe(enabled = true) {
   });
 }
 
-/** Logout through the IAM backend logout endpoint. */
+/** Logout through the Envoy Gateway logout endpoint. */
 export function useLogout() {
   return React.useCallback(async () => {
-    clearGatewaySessionConfirmed();
     window.location.href = buildGatewayLogoutUrl();
   }, []);
 }

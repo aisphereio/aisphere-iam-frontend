@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Phone, Fingerprint, Shield, Tag, ExternalLink, MapPin, Users } from 'lucide-react';
+import { Mail, Phone, Fingerprint, Shield, ExternalLink, MapPin, Users } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -18,22 +18,10 @@ import { Topbar } from './topbar';
 import { useMe, useLogout } from '@/hooks/use-auth';
 import type { Tab } from '@/lib/api/types';
 import { LoginPage } from './login-page';
-import {
-  clearGatewayLoginStarted,
-  clearGatewaySessionConfirmed,
-  consumeGatewayAuthReturn,
-  markGatewaySessionConfirmed,
-  shouldProbePrincipal,
-} from '@/lib/api/client';
+import { buildGatewayLoginUrl } from '@/lib/api/client';
 
 interface AppShellProps {
   children: (tab: Tab, identityOrg: string) => React.ReactNode;
-}
-
-const LOGIN_CONFIRM_WINDOW_MS = 30_000;
-
-function isRecentLoginAttempt(startedAt: number | null): startedAt is number {
-  return startedAt !== null && Date.now() - startedAt < LOGIN_CONFIRM_WINDOW_MS;
 }
 
 const IDENTITY_ORG_KEY = 'aisphere_iam_identity_org';
@@ -62,61 +50,14 @@ export function AppShell({ children }: AppShellProps) {
   const [identityOrg, setIdentityOrg] = useState(loadIdentityOrg);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [loginStartedAt, setLoginStartedAt] = useState<number | null>(null);
-  const [loginConfirmExpired, setLoginConfirmExpired] = useState(false);
-  const [canProbePrincipal, setCanProbePrincipal] = useState(false);
 
-  // In local cross-origin Gateway development, probing /me before explicit
-  // login triggers Envoy OIDC redirects inside XHR. Only render protected
-  // console content after /me confirms the Gateway session.
-  const { data: principal, error: principalError } = useMe(canProbePrincipal);
+  // In production (same-origin), /me can be probed immediately.
+  // In local cross-origin development, only probe after the user has logged in.
+  const { data: principal, error: principalError, isLoading } = useMe(true);
   const logout = useLogout();
 
-  useEffect(() => {
-    const returnedAt = consumeGatewayAuthReturn();
-
-    if (isRecentLoginAttempt(returnedAt)) {
-      setLoginStartedAt(returnedAt);
-      setCanProbePrincipal(true);
-      return;
-    }
-
-    clearGatewayLoginStarted();
-    setCanProbePrincipal(shouldProbePrincipal());
-  }, []);
-
-  useEffect(() => {
-    if (!principal) return;
-    markGatewaySessionConfirmed();
-    clearGatewayLoginStarted();
-    setLoginStartedAt(null);
-    setLoginConfirmExpired(false);
-  }, [principal]);
-
-  useEffect(() => {
-    if (!loginStartedAt || !principalError || loginConfirmExpired) return;
-    clearGatewayLoginStarted();
-    clearGatewaySessionConfirmed();
-    setLoginConfirmExpired(true);
-    setLoginStartedAt(null);
-    setCanProbePrincipal(false);
-  }, [loginConfirmExpired, loginStartedAt, principalError]);
-
-  useEffect(() => {
-    if (!principalError || loginStartedAt) return;
-    clearGatewaySessionConfirmed();
-    setCanProbePrincipal(false);
-  }, [loginStartedAt, principalError]);
-
-  if (!canProbePrincipal) {
-    return (
-      <TooltipProvider>
-        <LoginPage />
-      </TooltipProvider>
-    );
-  }
-
-  if (loginStartedAt && !principal && !principalError && !loginConfirmExpired) {
+  // Loading state
+  if (isLoading && !principal && !principalError) {
     return (
       <TooltipProvider>
         <LoginPage state="checking" />
@@ -124,18 +65,14 @@ export function AppShell({ children }: AppShellProps) {
     );
   }
 
-  if (!principal && !principalError) {
+  // Not authenticated — show login page
+  if (!principal || principalError) {
     return (
       <TooltipProvider>
-        <LoginPage state="checking" />
-      </TooltipProvider>
-    );
-  }
-
-  if (principalError) {
-    return (
-      <TooltipProvider>
-        <LoginPage state={loginConfirmExpired ? 'error' : 'idle'} />
+        <LoginPage
+          state="idle"
+          onLogin={() => { window.location.assign(buildGatewayLoginUrl()); }}
+        />
       </TooltipProvider>
     );
   }
@@ -204,7 +141,8 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         )}
       </div>
-    {/* Profile Dialog */}
+
+      {/* Profile Dialog */}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
