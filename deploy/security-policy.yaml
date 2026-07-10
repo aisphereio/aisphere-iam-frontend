@@ -66,6 +66,11 @@ spec:
           - aisphere-iam-web
         remoteJWKS:
           uri: https://casdoor.weagent.cc/.well-known/jwks
+        # The browser OIDC flow stores the access token in this cookie. JWT
+        # validation must read the same cookie before claimToHeaders can run.
+        extractFrom:
+          cookies:
+            - Aisphere-IAM-AccessToken
         claimToHeaders:
           - claim: sub
             header: x-aisphere-external-sub
