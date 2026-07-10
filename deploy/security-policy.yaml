@@ -15,6 +15,7 @@ spec:
   oidc:
     provider:
       issuer: https://casdoor.weagent.cc:30723
+      host: casdoor.aisphere:8000
     clientID: aisphere-iam-web
     clientSecret:
       name: casdoor-iam-web-oidc
@@ -36,7 +37,7 @@ spec:
         audiences:
           - aisphere-iam-web
         remoteJWKS:
-          uri: https://casdoor.weagent.cc:30723/.well-known/jwks
+          uri: http://casdoor.aisphere:8000/.well-known/jwks
         extractFrom:
           cookies:
             - Aisphere-IAM-AccessToken
