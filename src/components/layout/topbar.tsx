@@ -23,7 +23,7 @@ const tabLabels: Record<string, string> = {
   projects: 'nav.projects',
   grants: 'nav.grants',
   resources: 'nav.resources',
-  permissions: '权限控制台',
+  permissions: '访问权限',
 };
 
 const identityTabs = new Set(['users', 'groups']);
