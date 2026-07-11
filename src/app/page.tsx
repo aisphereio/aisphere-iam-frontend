@@ -5,7 +5,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { IamPage } from '@/components/pages/iam-page';
 import { ExternalUsersPage } from '@/components/pages/users-page';
 import { GroupsPage } from '@/components/pages/groups-page';
-import { PermissionsPage } from '@/components/pages/permissions-page';
+import { PermissionsCenterPage } from '@/components/pages/permissions-center-page';
 import type { Tab } from '@/lib/api/types';
 
 const queryClient = new QueryClient({
@@ -20,7 +20,7 @@ const queryClient = new QueryClient({
 function PageRouter({ tab, identityOrg }: { tab: Tab; identityOrg: string }) {
   if (tab === 'users') return <ExternalUsersPage identityOrg={identityOrg} />;
   if (tab === 'groups') return <GroupsPage identityOrg={identityOrg} />;
-  if (tab === 'permissions') return <PermissionsPage />;
+  if (tab === 'permissions') return <PermissionsCenterPage identityOrg={identityOrg} />;
   return <IamPage tab={tab} />;
 }
 
