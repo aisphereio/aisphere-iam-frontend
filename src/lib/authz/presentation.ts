@@ -8,7 +8,7 @@ import {
 } from '@/lib/authz/schema-summary';
 
 export type PermissionCategory = 'read' | 'manage' | 'operate' | 'other';
-export type ResourceCategory = 'identity' | 'platform' | 'asset' | 'runtime' | 'system';
+export type ResourceCategory = 'subject' | 'identity' | 'platform' | 'asset' | 'runtime' | 'system';
 
 export interface DirectoryOption {
   value: string;
@@ -34,7 +34,27 @@ const SUBJECT_LABELS: Record<string, string> = {
   application: '应用',
 };
 
+const MODEL_LABELS: Record<string, string> = {
+  user: '用户主体',
+  service: '服务账号主体',
+  service_account: '服务账号主体',
+  workload: '工作负载主体',
+  application: '应用主体',
+};
+
+const MODEL_DESCRIPTIONS: Record<string, string> = {
+  user: '代表一个具体登录用户。它通常只作为“谁获得权限”的主体，不是需要被授权访问的业务资源。',
+  service: '代表后端服务或自动化任务使用的机器身份，可被授予项目、资源或操作权限。',
+  service_account: '代表后端服务或自动化任务使用的机器身份，可被授予项目、资源或操作权限。',
+  workload: '代表 Kubernetes 工作负载或其他运行时身份，用于服务间安全调用。',
+  application: '代表一个应用身份，可作为授权主体参与平台访问控制。',
+};
+
 const RESOURCE_CATEGORY_META: Record<ResourceCategory, { label: string; description: string }> = {
+  subject: {
+    label: '授权主体（谁）',
+    description: '用户、服务账号和工作负载等可以被授予权限的身份定义。',
+  },
   identity: {
     label: '身份与组织',
     description: '用户源、用户组和组织树等身份目录资源。',
@@ -57,7 +77,7 @@ const RESOURCE_CATEGORY_META: Record<ResourceCategory, { label: string; descript
   },
 };
 
-const CATEGORY_ORDER: ResourceCategory[] = ['identity', 'platform', 'asset', 'runtime', 'system'];
+const CATEGORY_ORDER: ResourceCategory[] = ['subject', 'identity', 'platform', 'asset', 'runtime', 'system'];
 
 export function subjectTypeLabel(type?: string): string {
   if (!type) return '主体';
@@ -82,7 +102,16 @@ export function subjectTypeDescription(type?: string): string {
   }
 }
 
+export function modelDisplayLabel(resource: FriendlyResourceModel): string {
+  return MODEL_LABELS[resource.type] || resource.label || resourceLabel(resource.type);
+}
+
+export function modelDisplayDescription(resource: FriendlyResourceModel): string {
+  return MODEL_DESCRIPTIONS[resource.type] || resource.description || '平台权限模型中的资源定义。';
+}
+
 export function resourceCategory(type: string): ResourceCategory {
+  if (['user', 'service', 'service_account', 'workload', 'application'].includes(type)) return 'subject';
   if (['zone', 'group'].includes(type)) return 'identity';
   if (['organization', 'project', 'skill_space', 'agent_space', 'tool_space', 'sandbox_space', 'git_namespace'].includes(type)) return 'platform';
   if (['skill', 'agent', 'tool', 'git_repository'].includes(type)) return 'asset';
