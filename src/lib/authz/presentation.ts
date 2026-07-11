@@ -120,6 +120,12 @@ export function resourceCategory(type: string): ResourceCategory {
 }
 
 export function groupResources(resources: FriendlyResourceModel[]): ResourceCategoryGroup[] {
+  // Normalize schema-only subject definitions in place so every consumer of the
+  // same model array sees business labels instead of generic `User` / `Service`.
+  for (const resource of resources) {
+    resource.label = modelDisplayLabel(resource);
+    resource.description = modelDisplayDescription(resource);
+  }
   return CATEGORY_ORDER.map((key) => ({
     key,
     ...RESOURCE_CATEGORY_META[key],
