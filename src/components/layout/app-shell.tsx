@@ -122,17 +122,17 @@ export function AppShell({ children }: AppShellProps) {
           <div className="fixed inset-0 z-50 md:hidden">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
             <motion.div
-              className="absolute left-0 top-0 bottom-0 w-64 bg-sidebar border-r flex flex-col"
-              initial={{ x: -260 }}
+              className="absolute left-0 top-0 bottom-0 w-72 max-w-[86vw] bg-sidebar border-r flex flex-col [&>aside]:!flex [&>aside]:!w-full"
+              initial={{ x: -300 }}
               animate={{ x: 0 }}
-              exit={{ x: -260 }}
+              exit={{ x: -300 }}
               transition={{ duration: 0.2 }}
             >
               <Sidebar
                 activeTab={tab}
                 onTabChange={(t) => { setTab(t); setMobileSidebarOpen(false); }}
                 collapsed={false}
-                onToggleCollapse={() => {}}
+                onToggleCollapse={() => setMobileSidebarOpen(false)}
                 principal={principal || null}
                 onLogout={logout}
                 onOpenProfile={() => { setProfileOpen(true); setMobileSidebarOpen(false); }}
