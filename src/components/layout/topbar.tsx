@@ -18,15 +18,15 @@ interface TopbarProps {
 
 const tabLabels: Record<string, string> = {
   users: '身份目录',
-  groups: '组织管理',
-  organizations: '组织与用户组',
+  groups: '多级用户组',
+  organizations: '多级用户组',
   projects: 'nav.projects',
   grants: 'nav.grants',
   resources: 'nav.resources',
   permissions: '访问权限',
 };
 
-const identityTabs = new Set(['users', 'groups']);
+const identityTabs = new Set(['users', 'groups', 'permissions']);
 
 const identityOrgs = [
   { value: 'aisphere', label: 'aisphere' },
@@ -58,7 +58,7 @@ export function Topbar({ activeTab, onMenuClick, identityOrg, onIdentityOrgChang
       <div className="flex items-center gap-2">
         {identityTabs.has(activeTab) ? (
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">身份源</span>
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">Casdoor 组织</span>
             <Select value={identityOrg || defaultIdentityOrg} onValueChange={onIdentityOrgChange}>
               <SelectTrigger className="h-7 w-32 text-xs">
                 <SelectValue />
