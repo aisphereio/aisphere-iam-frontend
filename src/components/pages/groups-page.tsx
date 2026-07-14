@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X,
   ChevronDown, ChevronRight, Folder, FolderOpen,
-  UserMinus, UserPlus, CornerDownRight, Network, Layers,
+  UserMinus, UserPlus, CornerDownRight, CornerUpRight, Network, Layers,
   AlertTriangle, Bug, UserRound, Mail, Phone, Fingerprint,
   Tag, ExternalLink, MapPin, Users,
 } from 'lucide-react';
@@ -23,6 +23,7 @@ import {
   useIamExternalUsers, useIamRemoveUserFromGroup, useIamUpdateGroup,
 } from '@/hooks/use-iam';
 import type { IamGroup, IamPrincipal, IamUser } from '@/lib/api/types';
+import { GroupTreePicker } from './group-tree-picker';
 
 type OrganizationForm = {
   name: string;
@@ -123,19 +124,42 @@ function buildGroupPath(group: IamGroup | null, groupMap: Map<string, IamGroup>,
   return [rootLabel, ...path];
 }
 
-/** Collect all descendants of the given group id (DFS). */
+/** Collect all descendants of the given group id (DFS) with cycle protection. */
 function collectDescendants(
   groupId: string,
   childrenMap: Map<string, IamGroup[]>,
 ): Array<{ group: IamGroup; depth: number }> {
   const out: Array<{ group: IamGroup; depth: number }> = [];
+  const seen = new Set<string>();
   const stack: Array<{ id: string; depth: number }> = [{ id: groupId, depth: 0 }];
   while (stack.length > 0) {
     const { id, depth } = stack.pop()!;
+    if (seen.has(id)) continue; // cycle guard
+    seen.add(id);
     const children = childrenMap.get(id) || [];
     for (const child of children) {
       out.push({ group: child, depth: depth + 1 });
       stack.push({ id: groupID(child), depth: depth + 1 });
+    }
+  }
+  return out;
+}
+
+/** Collect all descendant IDs of the given group id (cycle-safe). Used for move-cycle prevention. */
+function collectDescendantIds(
+  groupId: string,
+  childrenMap: Map<string, IamGroup[]>,
+): Set<string> {
+  const out = new Set<string>();
+  const stack = [groupId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    const children = childrenMap.get(id) || [];
+    for (const child of children) {
+      const cid = groupID(child);
+      if (!cid || out.has(cid)) continue; // cycle guard
+      out.add(cid);
+      stack.push(cid);
     }
   }
   return out;
@@ -557,6 +581,14 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
       toast.error('不能把组织设为自己的父级');
       return;
     }
+    // Cycle prevention: cannot move into one's own descendant
+    if (newParentId) {
+      const descendantIds = collectDescendantIds(groupID(selectedGroup), childrenMap);
+      if (descendantIds.has(newParentId)) {
+        toast.error('不能把组织移动到自己的下级组织下（会形成环）');
+        return;
+      }
+    }
     try {
       await updateGroup.mutateAsync({
         orgId: zoneId,
@@ -571,6 +603,43 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
       await refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '更新组织失败');
+    }
+  };
+
+  /** Quick-move the selected group under a different parent (or to top-level). */
+  const handleMoveToParent = async (newParentId: string) => {
+    if (!selectedGroup) return;
+    const id = groupID(selectedGroup);
+    const parent = newParentId.trim();
+    // Self-reference guard
+    if (parent && parent === id) {
+      toast.error('不能把组织设为自己的父级');
+      return;
+    }
+    // Cycle guard: cannot move into own descendant
+    if (parent) {
+      const descendantIds = collectDescendantIds(id, childrenMap);
+      if (descendantIds.has(parent)) {
+        toast.error('不能把组织移动到自己的下级组织下（会形成环）');
+        return;
+      }
+    }
+    // No-op if unchanged
+    if ((parent || '') === (selectedGroup.parentId || '').trim()) return;
+    try {
+      await updateGroup.mutateAsync({
+        orgId: zoneId,
+        groupId: id,
+        parentId: parent || undefined,
+        name: selectedGroup.name || id,
+        displayName: selectedGroup.displayName || undefined,
+        type: selectedGroup.type || 'Physical',
+      });
+      toast.success(parent ? '组织已挂到新父级下' : '组织已移至顶级');
+      setForm((prev) => ({ ...prev, parentId: parent }));
+      await refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '移动组织失败');
     }
   };
 
@@ -829,8 +898,8 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               form={form}
               setForm={setForm}
               groups={groups}
-              groupMap={groupMap}
               rootLabel={rootLabel}
+              rootId={zoneId}
               selectedGroup={null}
               onCreate={handleCreate}
               onUpdate={handleUpdate}
@@ -922,6 +991,25 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                   </div>
                 </div>
 
+                {/* 移动到父级 */}
+                <div className="rounded-md border bg-muted/20 p-2.5 space-y-2">
+                  <div className="text-[10px] font-medium text-muted-foreground flex items-center gap-1.5">
+                    <CornerUpRight className="h-3 w-3" />
+                    移动到父级
+                    <span className="text-muted-foreground/70 font-normal">（把本组织挂到另一个组织下，或移至顶级）</span>
+                  </div>
+                  <GroupTreePicker
+                    groups={groups}
+                    rootLabel={rootLabel}
+                    rootId={zoneId}
+                    value={selectedGroup.parentId || ''}
+                    onChange={handleMoveToParent}
+                    excludeId={selectedId}
+                    placeholder={selectedGroup.parentId ? '当前父级（点击更换）' : '（当前为顶级组织）'}
+                    className="w-full"
+                  />
+                </div>
+
                 {/* 子组织 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -960,8 +1048,8 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               form={form}
               setForm={setForm}
               groups={groups}
-              groupMap={groupMap}
               rootLabel={rootLabel}
+              rootId={zoneId}
               selectedGroup={selectedGroup}
               onCreate={handleCreate}
               onUpdate={handleUpdate}
@@ -1113,8 +1201,8 @@ function OrganizationManagementCard({
   form,
   setForm,
   groups,
-  groupMap,
   rootLabel,
+  rootId,
   selectedGroup,
   onCreate,
   onUpdate,
@@ -1127,8 +1215,8 @@ function OrganizationManagementCard({
   form: OrganizationForm;
   setForm: (form: OrganizationForm) => void;
   groups: IamGroup[];
-  groupMap: Map<string, IamGroup>;
   rootLabel: string;
+  rootId: string;
   selectedGroup: IamGroup | null;
   onCreate: () => void;
   onUpdate: () => void;
@@ -1175,32 +1263,18 @@ function OrganizationManagementCard({
               （留空 = 顶级组织；选中组织后默认填入当前选中组织，可手动改）
             </span>
           </label>
-          <Select
+          <GroupTreePicker
+            groups={groups}
+            rootLabel={rootLabel}
+            rootId={rootId}
             value={form.parentId}
-            onValueChange={(v) => setForm({ ...form, parentId: v === '__none__' ? '' : v })}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder={
-                selectedGroup
-                  ? `继承当前选中组织: ${groupLabel(selectedGroup)}`
-                  : '（顶级组织，无父级）'
-              } />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">（顶级组织，无父级）</SelectItem>
-              {groups
-                .filter((g) => groupID(g) && groupID(g) !== groupID(selectedGroup))
-                .map((g) => {
-                  const id = groupID(g);
-                  const path = buildGroupPath(g, groupMap, rootLabel).join(' › ');
-                  return (
-                    <SelectItem key={id} value={id}>
-                      {groupLabel(g)} <span className="text-[10px] text-muted-foreground ml-1">({path})</span>
-                    </SelectItem>
-                  );
-                })}
-            </SelectContent>
-          </Select>
+            onChange={(v) => setForm({ ...form, parentId: v })}
+            excludeId={selectedGroup ? groupID(selectedGroup) : undefined}
+            placeholder={selectedGroup
+              ? `继承当前选中组织: ${groupLabel(selectedGroup)}`
+              : '（顶级组织，无父级）'}
+            className="w-full"
+          />
         </div>
         <div className="flex flex-wrap gap-2 md:col-span-3">
           <Button size="sm" className="h-8" onClick={onCreate} disabled={createPending}>
