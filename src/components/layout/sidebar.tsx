@@ -51,9 +51,7 @@ const navSections: NavSection[] = [
     title: '权限治理',
     icon: <ShieldCheck className="h-3.5 w-3.5" />,
     items: [
-      { key: 'grants', label: '授权与角色', hint: '管理角色模板和访问授权', icon: <Key className="h-4 w-4" /> },
-      { key: 'permissions', label: '权限控制台', hint: '查看权限模型、授权关系和有效权限', icon: <ShieldCheck className="h-4 w-4" /> },
-      { key: 'permissions-center', label: '权限中心', hint: '技术视角的 SpiceDB 权限管理', icon: <ShieldCheck className="h-4 w-4" /> },
+      { key: 'permissions', label: '访问控制', hint: '角色、分配、排查与高级治理', icon: <Key className="h-4 w-4" /> },
     ],
   },
 ];

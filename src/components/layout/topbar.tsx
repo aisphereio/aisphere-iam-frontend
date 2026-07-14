@@ -21,9 +21,10 @@ const tabLabels: Record<string, string> = {
   groups: '多级用户组',
   organizations: '多级用户组',
   projects: 'nav.projects',
-  grants: 'nav.grants',
+  grants: '访问控制',
   resources: 'nav.resources',
-  permissions: '访问权限',
+  permissions: '访问控制',
+  'permissions-center': '访问控制',
 };
 
 const identityTabs = new Set(['users', 'groups', 'permissions']);

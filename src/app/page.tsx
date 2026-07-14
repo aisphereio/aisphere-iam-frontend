@@ -2,11 +2,10 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
+import { AccessControlPage } from '@/components/access-control/access-control-page';
 import { IamPage } from '@/components/pages/iam-page';
 import { ExternalUsersPage } from '@/components/pages/users-page';
 import { GroupsPage } from '@/components/pages/groups-page';
-import { PermissionsBusinessPage } from '@/components/pages/permissions-business-page';
-import { PermissionsCenterPage } from '@/components/pages/permissions-center-page';
 import type { Tab } from '@/lib/api/types';
 
 const queryClient = new QueryClient({
@@ -21,8 +20,9 @@ const queryClient = new QueryClient({
 function PageRouter({ tab, identityOrg }: { tab: Tab; identityOrg: string }) {
   if (tab === 'users') return <ExternalUsersPage identityOrg={identityOrg} />;
   if (tab === 'groups') return <GroupsPage identityOrg={identityOrg} />;
-  if (tab === 'permissions') return <PermissionsBusinessPage identityOrg={identityOrg} />;
-  if (tab === 'permissions-center') return <PermissionsCenterPage identityOrg={identityOrg} />;
+  if (tab === 'permissions') return <AccessControlPage identityOrg={identityOrg} />;
+  if (tab === 'grants') return <AccessControlPage identityOrg={identityOrg} initialView="assignments" />;
+  if (tab === 'permissions-center') return <AccessControlPage identityOrg={identityOrg} initialView="advanced" />;
   return <IamPage tab={tab} />;
 }
 
