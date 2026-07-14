@@ -383,14 +383,14 @@ export const iamDirectoryApi = {
 
   assignUserToGroup: (orgId: string, groupId: string, userId: string) =>
     iamRequest<Record<string, never>>(
-      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
-      { method: 'POST', body: JSON.stringify({}) },
+      '/v1/iam/directory/group-memberships:assign',
+      { method: 'POST', body: JSON.stringify({ org_id: orgId, group_id: groupId, user_id: userId }) },
     ),
 
   removeUserFromGroup: (orgId: string, groupId: string, userId: string) =>
     iamRequest<Record<string, never>>(
-      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
-      { method: 'DELETE' },
+      '/v1/iam/directory/group-memberships:remove',
+      { method: 'POST', body: JSON.stringify({ org_id: orgId, group_id: groupId, user_id: userId }) },
     ),
 };
 
