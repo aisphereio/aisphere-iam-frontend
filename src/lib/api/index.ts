@@ -89,6 +89,16 @@ function boolValue(record: ApiRecord, ...keys: string[]): boolean | undefined {
   return undefined;
 }
 
+function numberValue(record: ApiRecord, ...keys: string[]): number | undefined {
+  const value = valueOf(record, ...keys);
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
 function stringListValue(record: ApiRecord, ...keys: string[]): string[] | undefined {
   const value = valueOf(record, ...keys);
   if (Array.isArray(value)) {
@@ -100,6 +110,73 @@ function stringListValue(record: ApiRecord, ...keys: string[]): string[] | undef
     return items.length > 0 ? items : undefined;
   }
   return undefined;
+}
+
+function stringMapValue(record: ApiRecord, ...keys: string[]): Record<string, string> | undefined {
+  const value = valueOf(record, ...keys);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, String(item)]));
+}
+
+function recordValue(record: ApiRecord, ...keys: string[]): Record<string, unknown> | undefined {
+  const value = valueOf(record, ...keys);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function normalizeIamResourceType(input: unknown): IamResourceType {
+  const record = asRecord(input);
+  return {
+    type: stringValue(record, 'type') || '',
+    capabilityId: stringValue(record, 'capabilityId', 'capability_id'),
+    ownerService: stringValue(record, 'ownerService', 'owner_service'),
+    displayName: stringValue(record, 'displayName', 'display_name'),
+    description: stringValue(record, 'description'),
+    parentTypes: stringListValue(record, 'parentTypes', 'parent_types'),
+    grantable: boolValue(record, 'grantable'),
+    auditable: boolValue(record, 'auditable'),
+    spicedbType: stringValue(record, 'spicedbType', 'spicedb_type'),
+    relations: stringListValue(record, 'relations'),
+    permissions: stringListValue(record, 'permissions'),
+    labels: stringMapValue(record, 'labels'),
+    metadata: stringMapValue(record, 'metadata'),
+    status: stringValue(record, 'status'),
+    createdAt: stringValue(record, 'createdAt', 'created_at'),
+    updatedAt: stringValue(record, 'updatedAt', 'updated_at'),
+  };
+}
+
+function normalizeIamRoleTemplate(input: unknown): IamRoleTemplate {
+  const record = asRecord(input);
+  return {
+    id: stringValue(record, 'id') || '',
+    resourceType: stringValue(record, 'resourceType', 'resource_type'),
+    roleKey: stringValue(record, 'roleKey', 'role_key') || '',
+    displayName: stringValue(record, 'displayName', 'display_name'),
+    description: stringValue(record, 'description'),
+    relation: stringValue(record, 'relation'),
+    builtIn: boolValue(record, 'builtIn', 'built_in'),
+    enabled: boolValue(record, 'enabled'),
+    sortOrder: numberValue(record, 'sortOrder', 'sort_order'),
+    permissions: stringListValue(record, 'permissions') || [],
+    activeGrantCount: numberValue(record, 'activeGrantCount', 'active_grant_count'),
+    version: numberValue(record, 'version'),
+    metadata: recordValue(record, 'metadata'),
+    createdAt: stringValue(record, 'createdAt', 'created_at'),
+    updatedAt: stringValue(record, 'updatedAt', 'updated_at'),
+  };
+}
+
+function normalizeIamResourceTypesReply(input: unknown): { resourceTypes: IamResourceType[] } {
+  const record = asRecord(input);
+  const resourceTypes = valueOf(record, 'resourceTypes', 'resource_types');
+  return { resourceTypes: Array.isArray(resourceTypes) ? resourceTypes.map(normalizeIamResourceType) : [] };
+}
+
+function normalizeIamRoleTemplatesReply(input: unknown): { roleTemplates: IamRoleTemplate[] } {
+  const record = asRecord(input);
+  const roleTemplates = valueOf(record, 'roleTemplates', 'role_templates');
+  return { roleTemplates: Array.isArray(roleTemplates) ? roleTemplates.map(normalizeIamRoleTemplate) : [] };
 }
 
 function normalizeIamUser(input: unknown): IamUser {
@@ -510,8 +587,8 @@ export const iamResourceService = {
   getResourceType: (type: string) =>
     iamRequest<IamResourceType>(`/v1/iam/control-plane/resource-types/${encodeURIComponent(type)}`),
 
-  listResourceTypes: () =>
-    iamRequest<{ resourceTypes: IamResourceType[] }>('/v1/iam/control-plane/resource-types'),
+  listResourceTypes: async () =>
+    normalizeIamResourceTypesReply(await iamRequest<unknown>('/v1/iam/control-plane/resource-types')),
 
   listResources: (params?: { type?: string; orgId?: string; projectId?: string }) =>
     iamRequest<{ resources: IamResource[] }>(
@@ -555,10 +632,10 @@ export const iamGrantService = {
       body: JSON.stringify(input),
     }),
 
-  listRoleTemplates: (params?: { resourceType?: string; roleKey?: string; enabled?: boolean }) =>
-    iamRequest<{ roleTemplates: IamRoleTemplate[] }>(
+  listRoleTemplates: async (params?: { resourceType?: string; roleKey?: string; enabled?: boolean }) =>
+    normalizeIamRoleTemplatesReply(await iamRequest<unknown>(
       `/v1/iam/control-plane/role-templates${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
-    ),
+    )),
 
   grantAccess: (grant: {
     resource?: { type: string; id: string };
