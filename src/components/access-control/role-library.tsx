@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Copy, KeyRound, Pencil, Plus, Search, Shield, UserPlus } from 'lucide-react';
+import { AlertTriangle, Copy, KeyRound, Pencil, Plus, RefreshCw, Search, Shield, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -73,8 +73,31 @@ export function RoleLibrary({ onAssign }: { onAssign: () => void }) {
         </CardContent>
       </Card>
 
-      <RoleSection title="管理作用域角色" description="平台、组织和用户组级管理员角色。平台角色必须显式分配。" roles={adminRoles} onAssign={onAssign} onEdit={(role) => { setEditingRole(role); setCopyRole(null); setEditorOpen(true); }} onCopy={(role) => { setCopyRole(role); setEditingRole(null); setEditorOpen(true); }} onDisable={disable} />
-      <RoleSection title="业务资源角色" description="用于项目、Skill、Agent、仓库、运行环境等具体资源。" roles={resourceRoles} onAssign={onAssign} onEdit={(role) => { setEditingRole(role); setCopyRole(null); setEditorOpen(true); }} onCopy={(role) => { setCopyRole(role); setEditingRole(null); setEditorOpen(true); }} onDisable={disable} />
+      {rolesQuery.isError && (
+        <Card role="alert" className="border-destructive/35 bg-destructive/[0.04]">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+              <div>
+                <h3 className="font-medium">角色加载失败</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {rolesQuery.error instanceof Error ? rolesQuery.error.message : '无法读取角色库，请稍后重试。'}
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => rolesQuery.refetch()}>
+              <RefreshCw className="mr-2 h-4 w-4" />重试
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!rolesQuery.isError && (
+        <>
+          <RoleSection title="管理作用域角色" description="平台、组织和用户组级管理员角色。平台角色必须显式分配。" roles={adminRoles} onAssign={onAssign} onEdit={(role) => { setEditingRole(role); setCopyRole(null); setEditorOpen(true); }} onCopy={(role) => { setCopyRole(role); setEditingRole(null); setEditorOpen(true); }} onDisable={disable} />
+          <RoleSection title="业务资源角色" description="用于项目、Skill、Agent、仓库、运行环境等具体资源。" roles={resourceRoles} onAssign={onAssign} onEdit={(role) => { setEditingRole(role); setCopyRole(null); setEditorOpen(true); }} onCopy={(role) => { setCopyRole(role); setEditingRole(null); setEditorOpen(true); }} onDisable={disable} />
+        </>
+      )}
 
       <RoleEditorDialog open={editorOpen} onOpenChange={setEditorOpen} role={editingRole} copyFrom={copyRole} resourceTypes={resourceTypes} />
     </section>
