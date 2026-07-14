@@ -78,7 +78,7 @@ export function AdvancedGovernance() {
                 <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => schemaQuery.refetch()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />刷新</Button><Button size="sm" variant="outline" onClick={validate} disabled={validateSchema.isPending}>校验</Button><Button size="sm" onClick={publish} disabled={publishSchema.isPending}><UploadCloud className="mr-1.5 h-3.5 w-3.5" />发布</Button></div>
               </div>
             </CardHeader>
-            <CardContent><Textarea aria-label="SpiceDB Schema" value={schemaDraft} onChange={(event) => setSchemaDraft(event.target.value)} className="min-h-[440px] resize-y font-mono text-xs leading-5" placeholder="正在加载 Schema…" /></CardContent>
+            <CardContent><Textarea aria-label="SpiceDB Schema" value={schemaDraft} onChange={(event) => setSchemaDraft(event.target.value)} className="min-h-[280px] sm:min-h-[440px] resize-y font-mono text-xs leading-5" placeholder="正在加载 Schema…" /></CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="relationships" className="mt-4">
@@ -96,7 +96,7 @@ export function AdvancedGovernance() {
               ) : (
                 <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
                   {relationships.map((item, index) => (
-                    <div key={`${item.resource.type}:${item.resource.id}#${item.relation}@${item.subject.type}:${item.subject.id}:${index}`} className="rounded-lg border bg-muted/35 px-3 py-2 font-mono text-xs leading-5">
+                    <div key={`${item.resource.type}:${item.resource.id}#${item.relation}@${item.subject.type}:${item.subject.id}:${index}`} className="rounded-lg border bg-muted/35 px-3 py-2 font-mono text-xs leading-5 break-all">
                       <span className="text-violet-600 dark:text-violet-400">{item.resource.type}:{item.resource.id}</span>
                       <span>#{item.relation}@</span>
                       <span className="text-cyan-700 dark:text-cyan-400">{item.subject.type}:{item.subject.id}{item.subject.relation ? `#${item.subject.relation}` : ''}</span>

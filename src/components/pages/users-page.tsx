@@ -77,7 +77,7 @@ function UserDetailDialog({ user, open, onOpenChange }: { user: IamUser | null; 
 
         <div className="space-y-4">
           {/* 基本信息 */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {detailItems.map((item) => {
               const Icon = item.icon;
               return (

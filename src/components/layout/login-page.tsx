@@ -72,7 +72,7 @@ export function LoginPage({ state = 'idle', message, onLogin }: LoginPageProps) 
 
         {/* Login card */}
         <motion.div variants={itemVariants} className="w-full">
-          <Card className="w-full border-border/60 px-8 py-10 shadow-lg shadow-violet-500/5 backdrop-blur-sm dark:shadow-violet-500/5">
+          <Card className="w-full border-border/60 px-5 py-8 sm:px-8 sm:py-10 shadow-lg shadow-violet-500/5 backdrop-blur-sm dark:shadow-violet-500/5">
             <div className="flex flex-col items-center text-center">
               {/* Title */}
               <h1 className="text-2xl font-bold tracking-tight gradient-text">

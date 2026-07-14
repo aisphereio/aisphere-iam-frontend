@@ -171,12 +171,12 @@ function OrganizationsTab() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-none">
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t('orgs.search')}
-            className="h-8 w-64 text-xs"
+            className="h-8 w-full sm:w-64 text-xs"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -385,12 +385,12 @@ function ProjectsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-none">
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t('projects.search')}
-            className="h-8 w-64 text-xs"
+            className="h-8 w-full sm:w-64 text-xs"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -995,7 +995,7 @@ function ResourcesTab() {
               <span>{t('resources.resources')}</span>
               <div className="flex items-center gap-2">
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="h-7 text-xs w-36"><SelectValue placeholder={t('resources.allTypes')} /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs w-full sm:w-36"><SelectValue placeholder={t('resources.allTypes')} /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">{t('resources.allTypes')}</SelectItem>
                     {resourceTypes.map((rt) => (
@@ -1230,7 +1230,7 @@ function CapabilitiesTab() {
             <CardTitle className="text-sm flex items-center justify-between">
               <span>项目能力</span>
               <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="h-7 text-xs w-40">
+                <SelectTrigger className="h-7 text-xs w-full sm:w-40">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>

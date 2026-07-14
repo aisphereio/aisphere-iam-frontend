@@ -117,8 +117,8 @@ export function PermissionDiagnosis({ identityOrg }: { identityOrg: string }) {
             ) : (
               <div className="space-y-4">
                 <div className={`flex items-center gap-3 rounded-xl border p-4 ${result.allowed ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-rose-500/30 bg-rose-500/10'}`}>
-                  {result.allowed ? <CheckCircle2 className="h-6 w-6 text-emerald-600" /> : <XCircle className="h-6 w-6 text-rose-600" />}
-                  <div><div className="font-semibold">{result.allowed ? '允许访问' : '拒绝访问'}</div><div className="text-xs text-muted-foreground">{subjectId} · {permissionLabel(permission)} · {resourceType}:{resourceId}</div></div>
+                  {result.allowed ? <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" /> : <XCircle className="h-6 w-6 text-rose-600 shrink-0" />}
+                  <div className="min-w-0"><div className="font-semibold">{result.allowed ? '允许访问' : '拒绝访问'}</div><div className="text-xs text-muted-foreground break-all">{subjectId} · {permissionLabel(permission)} · {resourceType}:{resourceId}</div></div>
                   <Badge className="ml-auto" variant={result.allowed ? 'default' : 'destructive'}>{result.allowed ? 'ALLOW' : 'DENY'}</Badge>
                 </div>
                 <div className="space-y-2">

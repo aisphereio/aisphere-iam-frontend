@@ -701,7 +701,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   }, [selection, groups]);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,380px)_1fr]">
       {/* ═══ LEFT: Unified tree (organizations + people) ═══ */}
       <div className="space-y-4">
         <Card>
