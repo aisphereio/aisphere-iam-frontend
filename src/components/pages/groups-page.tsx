@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X,
+  Building2, GitBranch, Plus, Save, Trash2, X,
   ChevronDown, ChevronRight, Folder, FolderOpen,
   UserMinus, UserPlus, CornerDownRight, Network, Layers,
   AlertTriangle, Bug, UserRound, Mail, Phone, Fingerprint,
-  Tag, ExternalLink, MapPin, Users,
+  Tag, ExternalLink, MapPin,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,10 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useMe } from '@/hooks/use-auth';
 import {
@@ -29,6 +34,24 @@ import {
 } from '@/hooks/use-iam';
 import type { IamGroup, IamPrincipal, IamUser } from '@/lib/api/types';
 import { GroupTreePicker } from './group-tree-picker';
+import {
+  buildChildrenMap,
+  buildGroupMap,
+  buildGroupPath,
+  buildGroupUsersMap,
+  buildOrganizationPath,
+  collectDescendantIds,
+  collectDescendants,
+  groupId as groupID,
+  groupLabel,
+  isTopLevelOrganization,
+  searchDirectory,
+  userId as userID,
+  userInitial,
+  userLabel,
+} from './organization-workbench-model';
+import { OrganizationWorkbenchShell } from './organization-workbench-shell';
+import { OrganizationWorkspaceTabs } from './organization-workspace';
 
 type OrganizationForm = {
   name: string;
@@ -39,7 +62,6 @@ type OrganizationForm = {
 
 const emptyForm: OrganizationForm = { name: '', displayName: '', type: 'Physical', parentId: '' };
 
-type SelectionKind = 'root' | 'group' | 'user';
 type Selection =
   | { kind: 'root' }
   | { kind: 'group'; group: IamGroup }
@@ -57,149 +79,6 @@ function defaultZoneFromPrincipal(principal?: IamPrincipal): string {
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
   }
   return 'aisphere';
-}
-
-function groupID(group?: IamGroup | null): string {
-  return group?.id || group?.externalId || group?.name || '';
-}
-
-function userID(user?: IamUser | null): string {
-  return user?.id || user?.externalId || user?.username || '';
-}
-
-function userLabel(user?: IamUser | null): string {
-  if (!user) return '';
-  return user.displayName || user.username || user.email || user.id || user.externalId || '';
-}
-
-function userInitial(user?: IamUser | null): string {
-  const label = userLabel(user);
-  return label ? label.charAt(0).toUpperCase() : '?';
-}
-
-function groupLabel(group?: IamGroup | null): string {
-  if (!group) return '';
-  return group.displayName || group.name || group.id || '';
-}
-
-function parentKey(group: IamGroup, userSourceId: string): string {
-  const parent = group.parentId?.trim();
-  return (!parent || parent === userSourceId) ? '' : parent;
-}
-
-function isTopLevelOrganization(group: IamGroup, userSourceId: string): boolean {
-  return parentKey(group, userSourceId) === '';
-}
-
-function buildChildrenMap(groups: IamGroup[], userSourceId: string): Map<string, IamGroup[]> {
-  const map = new Map<string, IamGroup[]>();
-  for (const group of groups) {
-    const parent = parentKey(group, userSourceId);
-    const bucket = map.get(parent) || [];
-    bucket.push(group);
-    map.set(parent, bucket);
-  }
-  for (const bucket of map.values()) {
-    bucket.sort((a, b) => groupLabel(a).localeCompare(groupLabel(b)));
-  }
-  return map;
-}
-
-function buildGroupMap(groups: IamGroup[]): Map<string, IamGroup> {
-  const map = new Map<string, IamGroup>();
-  for (const group of groups) {
-    const id = groupID(group);
-    if (id) map.set(id, group);
-  }
-  return map;
-}
-
-function buildGroupPath(group: IamGroup | null, groupMap: Map<string, IamGroup>, rootLabel: string): string[] {
-  if (!group) return [rootLabel];
-  const path: string[] = [];
-  const seen = new Set<string>();
-  let current: IamGroup | undefined = group;
-  while (current) {
-    const id = groupID(current);
-    if (!id || seen.has(id)) break;
-    seen.add(id);
-    path.unshift(groupLabel(current));
-    current = current.parentId ? groupMap.get(current.parentId) : undefined;
-  }
-  return [rootLabel, ...path];
-}
-
-/** Collect all descendants of the given group id (DFS) with cycle protection. */
-function collectDescendants(
-  groupId: string,
-  childrenMap: Map<string, IamGroup[]>,
-): Array<{ group: IamGroup; depth: number }> {
-  const out: Array<{ group: IamGroup; depth: number }> = [];
-  const seen = new Set<string>();
-  const stack: Array<{ id: string; depth: number }> = [{ id: groupId, depth: 0 }];
-  while (stack.length > 0) {
-    const { id, depth } = stack.pop()!;
-    if (seen.has(id)) continue; // cycle guard
-    seen.add(id);
-    const children = childrenMap.get(id) || [];
-    for (const child of children) {
-      out.push({ group: child, depth: depth + 1 });
-      stack.push({ id: groupID(child), depth: depth + 1 });
-    }
-  }
-  return out;
-}
-
-/** Collect all descendant IDs of the given group id (cycle-safe). Used for move-cycle prevention. */
-function collectDescendantIds(
-  groupId: string,
-  childrenMap: Map<string, IamGroup[]>,
-): Set<string> {
-  const out = new Set<string>();
-  const stack = [groupId];
-  while (stack.length > 0) {
-    const id = stack.pop()!;
-    const children = childrenMap.get(id) || [];
-    for (const child of children) {
-      const cid = groupID(child);
-      if (!cid || out.has(cid)) continue; // cycle guard
-      out.add(cid);
-      stack.push(cid);
-    }
-  }
-  return out;
-}
-
-/** Build a map from group ID -> list of users belonging to that group. */
-function buildGroupUsersMap(
-  groups: IamGroup[],
-  userById: Map<string, IamUser>,
-  allUsers: IamUser[],
-): Map<string, IamUser[]> {
-  const map = new Map<string, IamUser[]>();
-  // Seed from group.users (group-side membership, may contain usernames or IDs)
-  for (const group of groups) {
-    const gid = groupID(group);
-    if (!gid) continue;
-    const users: IamUser[] = [];
-    for (const id of group.users || []) {
-      const u = userById.get(id);
-      if (u && !users.includes(u)) users.push(u);
-    }
-    map.set(gid, users);
-  }
-  // Also join from user.groups (user-side membership) to catch memberships not
-  // reflected in group.users (e.g. users assigned via Casdoor directly).
-  for (const user of allUsers) {
-    for (const gid of user.groups || []) {
-      const existing = map.get(gid) || [];
-      if (!existing.includes(user)) {
-        existing.push(user);
-        map.set(gid, existing);
-      }
-    }
-  }
-  return map;
 }
 
 // ─── Unified tree row: renders a group with its inline members, then its sub-groups ─
@@ -226,7 +105,7 @@ function UnifiedTreeRows({
 }) {
   const rows = childrenMap.get(parentId) || [];
   return (
-    <>
+    <div role={depth > 0 ? 'group' : undefined}>
       {rows.map((group, idx) => {
         const id = groupID(group);
         const isGroupSelected = selection.kind === 'group' && groupID(selection.group) === id;
@@ -240,6 +119,10 @@ function UnifiedTreeRows({
           <div key={id} className="relative">
             {/* Organization node */}
             <button
+              type="button"
+              role="treeitem"
+              aria-selected={isGroupSelected}
+              aria-expanded={childCount > 0 ? isExpanded : undefined}
               className={`group flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
                 isGroupSelected
                   ? 'bg-accent text-foreground shadow-sm ring-1 ring-violet-500/30'
@@ -296,6 +179,9 @@ function UnifiedTreeRows({
                       return (
                         <button
                           key={uid}
+                          type="button"
+                          role="treeitem"
+                          aria-selected={isUserSelected}
                           className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs transition-colors ${
                             isUserSelected
                               ? 'bg-accent text-foreground ring-1 ring-violet-500/30'
@@ -351,7 +237,7 @@ function UnifiedTreeRows({
           </div>
         );
       })}
-    </>
+    </div>
   );
 }
 
@@ -449,11 +335,12 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const [selection, setSelection] = useState<Selection>({ kind: 'root' });
   const [selectedUserId, setSelectedUserId] = useState('');
   const [form, setForm] = useState<OrganizationForm>(emptyForm);
-  const [editing, setEditing] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [pendingMove, setPendingMove] = useState<{ groupName: string; parentName: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ groupId: string; groupName: string } | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [directoryQuery, setDirectoryQuery] = useState('');
 
   const zoneId = identityOrgProp?.trim() || defaultZoneFromPrincipal(me);
   const { data: zone } = useIamDirectoryOrganization(zoneId);
@@ -465,8 +352,8 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const assignUser = useIamAssignUserToGroup();
   const removeUser = useIamRemoveUserFromGroup();
 
-  const groups = data?.groups || [];
-  const allUsers = allUsersData?.users || [];
+  const groups = useMemo(() => data?.groups || [], [data?.groups]);
+  const allUsers = useMemo(() => allUsersData?.users || [], [allUsersData?.users]);
   const userById = useMemo(() => {
     const m = new Map<string, IamUser>();
     for (const u of allUsers) {
@@ -482,7 +369,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const childrenMap = useMemo(() => buildChildrenMap(groups, zoneId), [groups, zoneId]);
   const groupMap = useMemo(() => buildGroupMap(groups), [groups]);
   const groupUsersMap = useMemo(() => buildGroupUsersMap(groups, userById, allUsers), [groups, userById, allUsers]);
-  const rootGroups = childrenMap.get('') || [];
+  const rootGroups = useMemo(() => childrenMap.get('') || [], [childrenMap]);
   const rootLabel = zone?.displayName || zone?.name || zoneId;
 
   const topLevelOrganizationCount = groups.filter((group) => isTopLevelOrganization(group, zoneId)).length;
@@ -490,6 +377,10 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const groupsWithParentId = groups.filter((g) => g.parentId && g.parentId.trim()).length;
   const groupsWithPath = groups.filter((g) => g.path && g.path.trim()).length;
   const isDataFlat = groups.length > 0 && groupsWithParentId === 0 && groupsWithPath === 0;
+  const directorySearch = useMemo(
+    () => searchDirectory(directoryQuery, groups, allUsers),
+    [allUsers, directoryQuery, groups],
+  );
 
   // Selected group context (for member management)
   const selectedGroup = selection.kind === 'group' ? selection.group : null;
@@ -538,7 +429,6 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
 
   const resetForm = () => {
     setForm(emptyForm);
-    setEditing(false);
   };
 
   const handleSelectRoot = () => {
@@ -556,7 +446,6 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
       type: group.type || 'Physical',
       parentId: group.parentId || '',
     });
-    setEditing(false);
     // Auto-expand the selected group so its children are visible.
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -570,27 +459,49 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     setSelectedUserId('');
   };
 
-  const handleCreate = async () => {
-    if (!form.name.trim()) {
+  const handleCreate = async (params?: { name: string; displayName?: string; type: string; parentId?: string }) => {
+    // When called from the dialog, params is provided with a clean form.
+    // When called from the legacy inline button, fall back to the shared form state.
+    const name = params?.name ?? form.name.trim();
+    const displayName = params?.displayName ?? (form.displayName.trim() || undefined);
+    const type = params?.type ?? (form.type.trim() || 'Physical');
+    const effectiveParentId = params?.parentId
+      ?? (form.parentId.trim() || (selectedGroup ? groupID(selectedGroup) : undefined));
+
+    if (!name) {
       toast.error('组织名称不能为空');
       return;
     }
-    const effectiveParentId = form.parentId.trim()
-      || (selectedGroup ? groupID(selectedGroup) : undefined);
+    // Soft pre-check: warn if a group with the same name or displayName
+    // already exists. The backend will auto-generate a unique slug regardless,
+    // so this is informational only — it does not block creation.
+    const trimmedName = name.toLowerCase();
+    const existing = groups.find(g =>
+      (g.name || '').toLowerCase() === trimmedName ||
+      (g.displayName || '').toLowerCase() === trimmedName,
+    );
+    if (existing) {
+      toast.info('该名称已存在，系统将自动生成唯一标识名');
+    }
     try {
       await createGroup.mutateAsync({
         orgId: zoneId,
         parentId: effectiveParentId,
-        name: form.name.trim(),
-        displayName: form.displayName.trim() || undefined,
-        type: form.type.trim() || 'Physical',
+        name,
+        displayName,
+        type,
       });
       toast.success(effectiveParentId ? '子组织已创建' : '顶级组织已创建');
+      setCreateDialogOpen(false);
       resetForm();
       await refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '创建组织失败');
     }
+  };
+
+  const openCreateDialog = () => {
+    setCreateDialogOpen(true);
   };
 
   const doUpdateGroup = async () => {
@@ -606,7 +517,6 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         type: form.type.trim() || selectedGroup.type || 'Physical',
       });
       toast.success(newParentId !== (selectedGroup.parentId || undefined) ? '组织已移动' : '组织已更新');
-      setEditing(false);
       await refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '更新组织失败');
@@ -717,31 +627,145 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     return groups.filter((g) => (g.users || []).includes(uid));
   }, [selection, groups]);
 
+  const contextGroup = selection.kind === 'group'
+    ? selection.group
+    : selection.kind === 'user'
+      ? groupMap.get(selection.groupId) || null
+      : null;
+  const organizationPath = buildOrganizationPath(contextGroup, groupMap, { id: zoneId, label: rootLabel });
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,380px)_1fr]">
+    <>
+    <OrganizationWorkbenchShell
+      path={organizationPath}
+      organizationCount={groups.length}
+      memberCount={allUsers.length}
+      refreshing={isFetching}
+      onSelectPath={(item) => item.kind === 'root' ? handleSelectRoot() : handleSelectGroup(item.group)}
+      onCreate={openCreateDialog}
+      onRefresh={() => refetch()}
+      navigator={(
+      <>
       {/* ═══ LEFT: Unified tree (organizations + people) ═══ */}
-      <div className="space-y-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Network className="h-4 w-4" />
-              组织结构（含成员）
-            </CardTitle>
-            <CardDescription className="text-xs leading-relaxed">
-              用户源作为根节点。下方树里同时展示组织和成员：组织用文件夹图标，成员用头像 + 姓名。
-              点击节点在右侧查看详情。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <Metric label="顶级组织" value={topLevelOrganizationCount} />
-              <Metric label="子组织" value={childOrganizationCount} />
-              <Metric label="成员总数" value={allUsers.length} />
+      <div className="flex h-full min-h-0 flex-col lg:min-h-[520px]">
+        <div className="space-y-3 border-b p-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Network className="h-4 w-4 text-violet-500" />组织目录
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">选择一个组织或成员，在右侧完成管理。</p>
+          </div>
+          <div className="relative">
+            <Search aria-hidden className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={directoryQuery}
+              onChange={(event) => setDirectoryQuery(event.target.value)}
+              placeholder="搜索组织、成员或邮箱"
+              aria-label="搜索组织和成员"
+              className="h-9 bg-background pl-9 text-xs"
+            />
+          </div>
+          <div className="flex items-center gap-1 text-[11px]">
+            <button type="button" onClick={expandAll} className="rounded-md px-2 py-1 text-muted-foreground hover:bg-accent hover:text-foreground">展开全部</button>
+            <button type="button" onClick={collapseAll} className="rounded-md px-2 py-1 text-muted-foreground hover:bg-accent hover:text-foreground">折叠全部</button>
+            <span className="ml-auto text-muted-foreground/70">{expandedIds.size} 个节点已展开</span>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 p-3">
+          {directoryQuery.trim() ? (
+            <div className="max-h-[560px] space-y-4 overflow-y-auto pr-1 scrollbar-thin">
+              <div>
+                <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">组织 · {directorySearch.groups.length}</div>
+                <div className="space-y-1">
+                  {directorySearch.groups.map((group) => (
+                    <button
+                      type="button"
+                      key={groupID(group)}
+                      onClick={() => { handleSelectGroup(group); setDirectoryQuery(''); }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs hover:bg-accent"
+                    >
+                      <Folder className="h-4 w-4 shrink-0 text-amber-500" />
+                      <span className="min-w-0 flex-1 truncate font-medium">{groupLabel(group)}</span>
+                      {group.type && <Badge variant="outline" className="text-[9px]">{group.type}</Badge>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">成员 · {directorySearch.users.length}</div>
+                <div className="space-y-1">
+                  {directorySearch.users.map((user) => {
+                    const parent = groups.find((group) => groupUsersMap.get(groupID(group))?.some((member) => userID(member) === userID(user)));
+                    return (
+                      <button
+                        type="button"
+                        key={userID(user)}
+                        onClick={() => { handleSelectUser(user, parent ? groupID(parent) : ''); setDirectoryQuery(''); }}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs hover:bg-accent"
+                      >
+                        <Avatar className="h-7 w-7"><AvatarFallback className="text-[10px]">{userInitial(user)}</AvatarFallback></Avatar>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{userLabel(user)}</span>
+                          <span className="block truncate text-[10px] text-muted-foreground">{user.email || user.username}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {directorySearch.groups.length === 0 && directorySearch.users.length === 0 && (
+                <div className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">
+                  没有找到“{directoryQuery.trim()}”。请尝试名称、用户名或邮箱。
+                </div>
+              )}
             </div>
+          ) : (
+            <div role="tree" aria-label="组织与成员层级" className="max-h-[560px] overflow-y-auto pr-1 scrollbar-thin">
+              <button
+                type="button"
+                role="treeitem"
+                aria-selected={selection.kind === 'root'}
+                aria-expanded="true"
+                className={`mb-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors ${
+                  selection.kind === 'root'
+                    ? 'bg-violet-500/10 text-violet-700 ring-1 ring-violet-500/25 dark:text-violet-300'
+                    : 'hover:bg-accent'
+                }`}
+                onClick={handleSelectRoot}
+              >
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-500/10">
+                  <Building2 className="h-4 w-4 text-violet-500" />
+                </span>
+                <span className="truncate">{rootLabel}</span>
+                <Badge variant="outline" className="ml-auto text-[9px]">身份源</Badge>
+              </button>
+              {isLoading ? (
+                <div className="space-y-2 p-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-2/3" /></div>
+              ) : groups.length === 0 && allUsers.length === 0 ? (
+                <div className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">
+                  暂无组织。使用右上角“新建组织”开始搭建目录。
+                </div>
+              ) : (
+                <UnifiedTreeRows
+                  parentId=""
+                  depth={0}
+                  childrenMap={childrenMap}
+                  groupUsersMap={groupUsersMap}
+                  selection={selection}
+                  onSelectGroup={handleSelectGroup}
+                  onSelectUser={handleSelectUser}
+                  expandedIds={expandedIds}
+                  onToggle={toggleExpand}
+                />
+              )}
+            </div>
+          )}
+        </div>
 
             {/* 诊断警告 */}
             {isDataFlat ? (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+              <div className="mx-3 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
                   <div className="space-y-1">
@@ -798,65 +822,15 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               </div>
             ) : null}
 
-            <div className="rounded-md border bg-muted/20 p-2">
-              {/* Root node */}
-              <button
-                className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium ${
-                  selection.kind === 'root'
-                    ? 'bg-accent text-foreground shadow-sm ring-1 ring-violet-500/30'
-                    : 'bg-muted hover:bg-accent/60'
-                }`}
-                onClick={handleSelectRoot}
-              >
-                <Building2 className="h-3.5 w-3.5 shrink-0 text-violet-500" />
-                <span className="truncate">{rootLabel}</span>
-                <Badge variant="outline" className="ml-auto text-[9px]">用户源 / Zone</Badge>
-              </button>
-              {groups.length > 0 || allUsers.length > 0 ? (
-                <div className="flex items-center gap-1 mb-1 px-1">
-                  <button onClick={expandAll} className="text-[10px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-accent/60">展开全部</button>
-                  <span className="text-[10px] text-muted-foreground">/</span>
-                  <button onClick={collapseAll} className="text-[10px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-accent/60">折叠全部</button>
-                  <span className="ml-auto text-[10px] text-muted-foreground/70">{expandedIds.size} 已展开</span>
-                </div>
-              ) : null}
-              {isLoading ? (
-                <div className="space-y-2 p-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-2/3" />
-                </div>
-              ) : groups.length === 0 && allUsers.length === 0 ? (
-                <div className="px-2 py-6 text-center text-xs text-muted-foreground">暂无组织和成员</div>
-              ) : (
-                <div className="max-h-[560px] overflow-y-auto pr-1">
-                  <UnifiedTreeRows
-                    parentId=""
-                    depth={0}
-                    childrenMap={childrenMap}
-                    groupUsersMap={groupUsersMap}
-                    selection={selection}
-                    onSelectGroup={handleSelectGroup}
-                    onSelectUser={handleSelectUser}
-                    expandedIds={expandedIds}
-                    onToggle={toggleExpand}
-                  />
-                </div>
-              )}
-            </div>
-
             {error ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+              <div className="mx-3 mb-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
                 加载组织结构失败：{error instanceof Error ? error.message : 'unknown error'}
               </div>
             ) : null}
-
-            <Button size="sm" variant="outline" className="h-8 w-full" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw className={`mr-1 h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-              刷新组织结构
-            </Button>
-          </CardContent>
-        </Card>
       </div>
+      </>
+      )}
+    >
 
       {/* ═══ RIGHT: Detail panel ═══ */}
       <div className="space-y-4">
@@ -864,17 +838,19 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         {selection.kind === 'root' ? (
           <>
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-violet-500" />
-                    {rootLabel}
-                  </span>
-                  <Badge variant="outline" className="text-[10px]">用户源 / Zone</Badge>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  这是身份源根节点。下方显示所有顶级组织和全部成员。点击左侧树中的组织或成员查看详情。
-                </CardDescription>
+              <CardHeader className="pb-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-300">
+                      <Building2 className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <CardTitle className="text-xl tracking-tight">{rootLabel}</CardTitle>
+                      <CardDescription className="mt-1 text-xs">身份源根节点 · 管理所有顶级组织和目录成员</CardDescription>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={openCreateDialog}><Plus className="mr-1.5 h-3.5 w-3.5" />新建顶级组织</Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
@@ -890,7 +866,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                   <div className="space-y-1.5">
                     {rootGroups.length === 0 ? (
                       <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-                        暂无顶级组织。在下方"组织管理"里新建一个顶级组织开始。
+                        暂无顶级组织。使用右上角“新建组织”开始搭建目录。
                       </div>
                     ) : rootGroups.map((group) => {
                       const gid = groupID(group);
@@ -911,21 +887,6 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
               </CardContent>
             </Card>
 
-            <OrganizationManagementCard
-              form={form}
-              setForm={setForm}
-              groups={groups}
-              rootLabel={rootLabel}
-              rootId={zoneId}
-              selectedGroup={null}
-              onCreate={handleCreate}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-              onSelectRoot={handleSelectRoot}
-              createPending={createGroup.isPending}
-              updatePending={updateGroup.isPending}
-              deletePending={deleteGroup.isPending}
-            />
           </>
         ) : null}
 
@@ -933,130 +894,113 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         {selection.kind === 'group' ? (
           <>
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 min-w-0">
-                    {childrenMap.get(selectedId)?.length ? (
-                      <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
-                    ) : (
-                      <GitBranch className="h-4 w-4 text-sky-500 shrink-0" />
-                    )}
-                    <span className="truncate">{groupLabel(selectedGroup)}</span>
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Badge variant="outline" className="text-[10px]">{selection.group.type || 'no-type'}</Badge>
-                    <Badge variant="secondary" className="text-[10px]">{groups.length}</Badge>
+              <CardHeader className="pb-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                      {childrenMap.get(selectedId)?.length ? <FolderOpen className="h-5 w-5" /> : <GitBranch className="h-5 w-5" />}
+                    </span>
+                    <div className="min-w-0">
+                      <CardTitle className="truncate text-xl tracking-tight">{groupLabel(selectedGroup)}</CardTitle>
+                      <CardDescription className="mt-1 flex items-center gap-2 text-xs">
+                        <Badge variant="outline" className="text-[9px]">{selection.group.type || '未分类'}</Badge>
+                        <span className="truncate font-mono">{selection.group.name || selectedId}</span>
+                      </CardDescription>
+                    </div>
                   </div>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  <span className="text-foreground/70">当前路径：</span>
-                  <span className="font-mono text-[11px]">
-                    {buildGroupPath(selectedGroup, groupMap, rootLabel).map((p, i) => (
-                      <span key={i}>
-                        {i > 0 ? <span className="text-muted-foreground/60"> › </span> : null}
-                        {p}
-                      </span>
-                    ))}
-                  </span>
-                </CardDescription>
+                  <Button size="sm" variant="outline" onClick={openCreateDialog}><Plus className="mr-1.5 h-3.5 w-3.5" />新建下级</Button>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* 成员列表 */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                      <Users className="h-3.5 w-3.5" />
-                      成员
-                      <Badge variant="secondary" className="text-[9px]">{selectedGroupUsers.length}</Badge>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    {selectedGroupUsers.length === 0 ? (
-                      <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-                        当前组织暂无成员。在下方"添加成员"区域选择用户加入。
-                      </div>
-                    ) : selectedGroupUsers.map((user) => (
-                      <MemberRow
-                        key={userID(user) || user.username}
-                        user={user}
-                        onRemove={handleRemoveUser}
-                        removePending={removeUser.isPending}
-                      />
-                    ))}
-                  </div>
+              <CardContent className="space-y-5">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Metric label="直接成员" value={selectedGroupUsers.length} />
+                  <Metric label="直接下级" value={childrenMap.get(selectedId)?.length || 0} />
+                  <Metric label="全部下级" value={descendantRows.length} />
                 </div>
 
-                {/* 添加成员 */}
-                <div className="rounded-md border bg-muted/20 p-2.5 space-y-2">
-                  <div className="text-[10px] font-medium text-muted-foreground">添加成员</div>
-                  <div className="flex flex-col gap-2 md:flex-row">
-                    <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={assignableUsers.length === 0}>
-                      <SelectTrigger className="h-8 flex-1 text-xs">
-                        <SelectValue placeholder={assignableUsers.length === 0 ? '没有可添加的用户' : '选择要加入的用户'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {assignableUsers.map((user) => {
-                          const id = userID(user);
-                          return id ? <SelectItem key={id} value={id}>{userLabel(user)}</SelectItem> : null;
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <Button size="sm" className="h-8" disabled={!selectedUserId || assignUser.isPending} onClick={handleAssignUser}>
-                      <UserPlus className="mr-1 h-3.5 w-3.5" />
-                      加入当前组织
-                    </Button>
-                  </div>
-                </div>
-
-                {/* 子组织 */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                      <Folder className="h-3.5 w-3.5 text-amber-500" />
-                      下级组织（含子级）
-                      <Badge variant="secondary" className="text-[9px]">{descendantRows.length}</Badge>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    {descendantRows.length === 0 ? (
-                      <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-                        暂无下级组织。在下方"组织管理"里点击"新建子组织"开始。
-                      </div>
-                    ) : descendantRows.map(({ group, depth }) => {
-                      const gid = groupID(group);
-                      const path = buildGroupPath(group, groupMap, rootLabel).join(' › ');
-                      return (
-                        <div key={gid} style={{ marginLeft: Math.min(depth, 4) * 8 }}>
-                          <ChildGroupCard
-                            group={group}
-                            path={path}
-                            memberCount={groupUsersMap.get(gid)?.length || 0}
-                            childCount={childrenMap.get(gid)?.length || 0}
-                            onClick={() => handleSelectGroup(group)}
-                          />
+                <OrganizationWorkspaceTabs
+                  memberCount={selectedGroupUsers.length}
+                  childCount={descendantRows.length}
+                  overview={(
+                    <div className="space-y-3">
+                      <div>
+                        <div>
+                          <h3 className="text-sm font-semibold">下级组织</h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">按当前作用域查看所有下级，并进入任意节点继续管理。</p>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                      </div>
+                      <div className="space-y-2">
+                        {descendantRows.length === 0 ? (
+                          <div className="rounded-xl border border-dashed bg-muted/15 p-8 text-center">
+                            <Folder className="mx-auto h-7 w-7 text-amber-500/70" />
+                            <div className="mt-3 text-sm font-medium">还没有下级组织</div>
+                            <p className="mt-1 text-xs text-muted-foreground">创建一个团队或部门，继续扩展当前组织结构。</p>
+                          </div>
+                        ) : descendantRows.map(({ group, depth }) => {
+                          const gid = groupID(group);
+                          const path = buildGroupPath(group, groupMap, rootLabel).join(' › ');
+                          return (
+                            <div key={gid} style={{ marginLeft: Math.min(depth, 4) * 8 }}>
+                              <ChildGroupCard
+                                group={group}
+                                path={path}
+                                memberCount={groupUsersMap.get(gid)?.length || 0}
+                                childCount={childrenMap.get(gid)?.length || 0}
+                                onClick={() => handleSelectGroup(group)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  members={(
+                    <div className="space-y-4">
+                      <div className="rounded-xl border bg-muted/20 p-3">
+                        <div className="mb-2 text-xs font-medium">添加成员</div>
+                        <div className="flex flex-col gap-2 md:flex-row">
+                          <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={assignableUsers.length === 0}>
+                            <SelectTrigger className="h-9 flex-1 text-xs">
+                              <SelectValue placeholder={assignableUsers.length === 0 ? '没有可添加的用户' : '选择要加入的用户'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {assignableUsers.map((user) => {
+                                const id = userID(user);
+                                return id ? <SelectItem key={id} value={id}>{userLabel(user)}</SelectItem> : null;
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" className="h-9" disabled={!selectedUserId || assignUser.isPending} onClick={handleAssignUser}>
+                            <UserPlus className="mr-1.5 h-3.5 w-3.5" />加入当前组织
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedGroupUsers.length === 0 ? (
+                          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">当前组织还没有直接成员。</div>
+                        ) : selectedGroupUsers.map((user) => (
+                          <MemberRow key={userID(user) || user.username} user={user} onRemove={handleRemoveUser} removePending={removeUser.isPending} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  settings={(
+                    <OrganizationManagementCard
+                      form={form}
+                      setForm={setForm}
+                      groups={groups}
+                      rootLabel={rootLabel}
+                      rootId={zoneId}
+                      selectedGroup={selection.group}
+                      onUpdate={handleUpdate}
+                      onDelete={handleDelete}
+                      updatePending={updateGroup.isPending}
+                      deletePending={deleteGroup.isPending}
+                    />
+                  )}
+                />
               </CardContent>
             </Card>
-
-            <OrganizationManagementCard
-              form={form}
-              setForm={setForm}
-              groups={groups}
-              rootLabel={rootLabel}
-              rootId={zoneId}
-              selectedGroup={selectedGroup}
-              onCreate={handleCreate}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-              onSelectRoot={handleSelectRoot}
-              createPending={createGroup.isPending}
-              updatePending={updateGroup.isPending}
-              deletePending={deleteGroup.isPending}
-            />
           </>
         ) : null}
 
@@ -1190,6 +1134,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
           </Card>
         ) : null}
       </div>
+    </OrganizationWorkbenchShell>
 
       {/* ─── Confirmation dialogs ─── */}
       <AlertDialog open={!!pendingMove} onOpenChange={(v) => !v && setPendingMove(null)}>
@@ -1232,7 +1177,19 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+
+      {/* ─── Create group dialog ─── */}
+      <CreateGroupDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        groups={groups}
+        rootLabel={rootLabel}
+        rootId={zoneId}
+        defaultParentId={selectedGroup ? groupID(selectedGroup) : undefined}
+        onCreate={(params) => handleCreate(params)}
+        createPending={createGroup.isPending}
+      />
+    </>
   );
 }
 
@@ -1244,11 +1201,8 @@ function OrganizationManagementCard({
   rootLabel,
   rootId,
   selectedGroup,
-  onCreate,
   onUpdate,
   onDelete,
-  onSelectRoot,
-  createPending,
   updatePending,
   deletePending,
 }: {
@@ -1257,93 +1211,263 @@ function OrganizationManagementCard({
   groups: IamGroup[];
   rootLabel: string;
   rootId: string;
-  selectedGroup: IamGroup | null;
-  onCreate: () => void;
+  selectedGroup: IamGroup;
   onUpdate: () => void;
   onDelete: () => void;
-  onSelectRoot: () => void;
-  createPending: boolean;
   updatePending: boolean;
   deletePending: boolean;
 }) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <Layers className="h-4 w-4" />
-            组织管理
-          </span>
-          <Badge variant="secondary">{groups.length}</Badge>
-        </CardTitle>
-        <CardDescription className="text-xs">
-          {selectedGroup
-            ? `编辑 ${groupLabel(selectedGroup)} 或在它下面新建子组织。也可以在"父级组织"下拉里调整层级。`
-            : '未选中组织时，新建的是顶级组织；选中左侧树中的组织后，可在它下面新建子组织。'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">组织名称 *</label>
-          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" placeholder="platform" />
+    <section className="space-y-4 rounded-xl border bg-muted/15 p-4">
+      <div>
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Layers className="h-4 w-4 text-violet-500" />组织属性
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">显示名</label>
-          <Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} className="h-8 text-xs" placeholder="平台组织" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">组织类型</label>
-          <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="h-8 text-xs" placeholder="Physical" />
-        </div>
-        <div className="space-y-1 md:col-span-3">
-          <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <CornerDownRight className="h-3 w-3" />
-            父级组织
-            <span className="text-[10px] text-muted-foreground/70">
-              （留空 = 顶级组织；选中组织后默认填入当前选中组织，可手动改）
-            </span>
-          </label>
-          <GroupTreePicker
-            groups={groups}
-            rootLabel={rootLabel}
-            rootId={rootId}
-            value={form.parentId}
-            onChange={(v) => setForm({ ...form, parentId: v })}
-            excludeId={selectedGroup ? groupID(selectedGroup) : undefined}
-            placeholder={selectedGroup
-              ? `继承当前选中组织: ${groupLabel(selectedGroup)}`
-              : '（顶级组织，无父级）'}
-            className="w-full"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2 md:col-span-3">
-          <Button size="sm" className="h-8" onClick={onCreate} disabled={createPending}>
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            {form.parentId || selectedGroup ? '新建子组织' : '新建顶级组织'}
-          </Button>
-          <Button size="sm" variant="outline" className="h-8" onClick={onUpdate} disabled={!selectedGroup || updatePending}>
-            <Save className="mr-1 h-3.5 w-3.5" />
-            更新选中组织
-          </Button>
-          <Button size="sm" variant="destructive" className="h-8" onClick={onDelete} disabled={!selectedGroup || deletePending}>
-            <Trash2 className="mr-1 h-3.5 w-3.5" />
-            删除选中组织
-          </Button>
-          <Button size="sm" variant="ghost" className="h-8" onClick={onSelectRoot}>
-            <X className="mr-1 h-3.5 w-3.5" />
-            回到用户源根节点
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <p className="mt-1 text-xs text-muted-foreground">修改名称、类型或父级组织。父级变化会先要求确认。</p>
+      </div>
+          <div className="space-y-3">
+            <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <Save className="h-3.5 w-3.5" />
+              编辑「{groupLabel(selectedGroup)}」
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">组织名称</label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" placeholder="platform" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">显示名</label>
+                <Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} className="h-8 text-xs" placeholder="平台组织" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">组织类型</label>
+                <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="h-8 text-xs" placeholder="Physical" />
+              </div>
+              <div className="space-y-1 md:col-span-3">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <CornerDownRight className="h-3 w-3" />
+                  父级组织
+                  <span className="text-[10px] text-muted-foreground/70">
+                    （留空 = 顶级组织；可调整层级）
+                  </span>
+                </label>
+                <GroupTreePicker
+                  groups={groups}
+                  rootLabel={rootLabel}
+                  rootId={rootId}
+                  value={form.parentId}
+                  onChange={(v) => setForm({ ...form, parentId: v })}
+                  excludeId={groupID(selectedGroup)}
+                  placeholder="（顶级组织，无父级）"
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="h-8" onClick={onUpdate} disabled={updatePending}>
+                <Save className="mr-1 h-3.5 w-3.5" />
+                更新组织
+              </Button>
+              <Button size="sm" variant="destructive" className="h-8" onClick={onDelete} disabled={deletePending}>
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                删除组织
+              </Button>
+            </div>
+          </div>
+    </section>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border bg-card/50 px-2 py-1.5">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold tabular-nums">{value}</div>
+    <div className="rounded-xl border bg-card/70 px-3 py-2.5">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums tracking-tight">{value}</div>
     </div>
+  );
+}
+
+// ─── Create Group Dialog ──────────────────────────────────────────────
+function CreateGroupDialog({
+  open,
+  onOpenChange,
+  groups,
+  rootLabel,
+  rootId,
+  defaultParentId,
+  onCreate,
+  createPending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  groups: IamGroup[];
+  rootLabel: string;
+  rootId: string;
+  defaultParentId?: string;
+  onCreate: (params: { name: string; displayName?: string; type: string; parentId?: string }) => Promise<void>;
+  createPending: boolean;
+}) {
+  const [name, setName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [type, setType] = useState('Physical');
+  const [parentId, setParentId] = useState(defaultParentId || '');
+
+  // Reset form whenever the dialog opens.
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setDisplayName('');
+      setType('Physical');
+      setParentId(defaultParentId || '');
+    }
+  }, [open, defaultParentId]);
+
+  const parentGroup = parentId ? groups.find((g) => groupID(g) === parentId) : null;
+  const isTopLevel = !parentId;
+  const trimmedName = name.trim();
+  const canSubmit = trimmedName.length > 0 && !createPending;
+
+  // Duplicate-name detection (informational only — backend auto-deduplicates).
+  const trimmedLower = trimmedName.toLowerCase();
+  const duplicate = trimmedName.length > 0 && groups.some((g) =>
+    (g.name || '').toLowerCase() === trimmedLower ||
+    (g.displayName || '').toLowerCase() === trimmedLower,
+  );
+
+  // Live preview of what the tree will show.
+  const previewLabel = displayName.trim() || trimmedName || '新组织';
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    await onCreate({
+      name: trimmedName,
+      displayName: displayName.trim() || undefined,
+      type: type.trim() || 'Physical',
+      parentId: parentId || undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Plus className="h-4 w-4 text-violet-500" />
+            {isTopLevel ? '新建顶级组织' : '新建子组织'}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {isTopLevel
+              ? `在「${rootLabel}」下创建一个顶级组织。`
+              : `在「${groupLabel(parentGroup) || parentId}」下创建子组织。`}
+            名称用于系统标识（重名自动加后缀），显示名为组织树中展示的名称。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {/* 组织名称 */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">组织名称 *</label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-9 text-sm"
+              placeholder="platform"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) handleSubmit(); }}
+            />
+            <p className="text-[10px] text-muted-foreground/70">
+              英文标识，支持字母、数字、连字符。中文等非 ASCII 名称将自动生成英文标识。
+            </p>
+            {duplicate ? (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                该名称已存在，系统将自动生成唯一标识名（如 {trimmedName || 'name'}-2）
+              </p>
+            ) : null}
+          </div>
+
+          {/* 显示名 */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">显示名</label>
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="h-9 text-sm"
+              placeholder="平台组织"
+              onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) handleSubmit(); }}
+            />
+            <p className="text-[10px] text-muted-foreground/70">
+              组织树中展示的名称，留空时自动使用组织名称。
+            </p>
+          </div>
+
+          {/* 组织类型 */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">组织类型</label>
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Physical">Physical（实体组织）</SelectItem>
+                <SelectItem value="Virtual">Virtual（虚拟组织）</SelectItem>
+                <SelectItem value="Department">Department（部门）</SelectItem>
+                <SelectItem value="Team">Team（团队）</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 父级组织 */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <CornerDownRight className="h-3 w-3" />
+              父级组织
+              <span className="text-[10px] text-muted-foreground/70">
+                （留空 = 顶级组织）
+              </span>
+            </label>
+            <GroupTreePicker
+              groups={groups}
+              rootLabel={rootLabel}
+              rootId={rootId}
+              value={parentId}
+              onChange={setParentId}
+              placeholder="（顶级组织，无父级）"
+              className="w-full"
+            />
+          </div>
+
+          {/* 预览 */}
+          <div className="rounded-md border bg-muted/30 p-2.5 space-y-1">
+            <div className="text-[10px] font-medium text-muted-foreground">预览</div>
+            <div className="flex items-center gap-2 text-xs">
+              {isTopLevel ? (
+                <>
+                  <Building2 className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                  <span className="text-muted-foreground">{rootLabel}</span>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
+                </>
+              ) : (
+                <>
+                  <Folder className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span className="text-muted-foreground truncate">{groupLabel(parentGroup) || parentId}</span>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
+                </>
+              )}
+              <Folder className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+              <span className="font-medium truncate">{previewLabel}</span>
+              <Badge variant="outline" className="text-[9px] shrink-0">{type}</Badge>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
+            {createPending ? '创建中…' : '确认创建'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
