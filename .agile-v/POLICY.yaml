@@ -1,0 +1,52 @@
+# Policy — aisphere-iam-front
+# Cycle: C1 | Generated: 2026-07-14
+
+policies:
+  - id: POL-001
+    description: "Authentication must be handled by Envoy Gateway OIDC"
+    rule: "No token management in frontend code"
+    enforcement: "automated"
+    exception: null
+    reference: REQ-FE-AUTH-001
+
+  - id: POL-002
+    description: "API calls must use credentials: 'include'"
+    rule: "All fetch requests include credentials"
+    enforcement: "automated"
+    exception: null
+    reference: REQ-FE-AUTH-004
+
+  - id: POL-003
+    description: "User directory is read-only"
+    rule: "No user creation, update, or delete in frontend"
+    enforcement: "manual"
+    exception: null
+    reference: REQ-FE-USER-001
+
+  - id: POL-004
+    description: "Bilingual UI support required"
+    rule: "All UI text must have EN and ZH translations"
+    enforcement: "manual"
+    exception: null
+    reference: REQ-FE-LAYOUT-005
+
+  - id: POL-005
+    description: "Loading states required for all data fetches"
+    rule: "Every page must show skeleton while loading"
+    enforcement: "manual"
+    exception: null
+    reference: REQ-FE-LAYOUT-008
+
+  - id: POL-006
+    description: "Docker multi-stage build"
+    rule: "Production image must be Alpine-based, non-root"
+    enforcement: "automated"
+    exception: null
+    reference: REQ-FE-ENG-001
+
+  - id: POL-007
+    description: "K8s resource limits"
+    rule: "Deployment must specify CPU/memory limits"
+    enforcement: "automated"
+    exception: null
+    reference: REQ-FE-ENG-002

@@ -1,0 +1,29 @@
+# Control Matrix — aisphere-iam-front
+# Cycle: C1 | Generated: 2026-07-14
+
+id: aisphere-iam-front-001
+scope: "IAM Console frontend application"
+applies_to: "Next.js 16 frontend serving IAM management UI"
+minimum_risk_level: low
+data_class: public
+tools:
+  - next.js
+  - react
+  - typescript
+  - tailwindcss
+  - shadcn-ui
+  - tanstack-query
+model: claude-sonnet-4
+logs: true
+max_permissions: user
+human_gates:
+  - gate_0_system_understanding
+  - gate_1_requirement_approval
+  - gate_2_verification_evidence
+tests:
+  - unit: false
+  - component: false
+  - e2e: false
+cost_limit: low
+rollback: k8s-rollback
+owner: yuanyp8

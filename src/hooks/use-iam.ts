@@ -169,6 +169,23 @@ export function useIamCreateProject() {
   });
 }
 
+export function useIamUpdateProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, project }: { projectId: string; project: Partial<{ displayName: string; description: string; visibility: string }> }) =>
+      iamProjectApi.updateProject(projectId, project),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'projects'] }),
+  });
+}
+
+export function useIamArchiveProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (projectId: string) => iamProjectApi.archiveProject(projectId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'projects'] }),
+  });
+}
+
 // ─── Capabilities ──────────────────────────────────────────────────────
 
 export function useIamCapabilities() {
@@ -183,6 +200,33 @@ export function useIamProjectCapabilities(projectId: string) {
     queryKey: ['iam', 'project-capabilities', projectId],
     queryFn: () => iamProjectApi.listProjectCapabilities(projectId),
     enabled: Boolean(projectId),
+  });
+}
+
+export function useIamRegisterCapability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (capability: { name: string; displayName?: string; ownerService?: string }) =>
+      iamProjectApi.registerCapability(capability),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'capabilities'] }),
+  });
+}
+
+export function useIamEnableCapability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, capabilityId }: { projectId: string; capabilityId: string }) =>
+      iamProjectApi.enableProjectCapability(projectId, capabilityId),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['iam', 'project-capabilities', vars.projectId] }),
+  });
+}
+
+export function useIamDisableCapability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, capabilityId }: { projectId: string; capabilityId: string }) =>
+      iamProjectApi.disableProjectCapability(projectId, capabilityId),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['iam', 'project-capabilities', vars.projectId] }),
   });
 }
 
@@ -206,6 +250,23 @@ export function useIamResourceBindings(params?: { resourceType?: string; resourc
   return useQuery({
     queryKey: ['iam', 'resource-bindings', params],
     queryFn: () => iamResourceService.listResourceBindings(params),
+  });
+}
+
+export function useIamResourceType(type: string) {
+  return useQuery({
+    queryKey: ['iam', 'resource-type', type],
+    queryFn: () => iamResourceService.getResourceType(type),
+    enabled: Boolean(type),
+  });
+}
+
+export function useIamRegisterResourceType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rt: { type: string; displayName?: string; description?: string }) =>
+      iamResourceService.registerResourceType(rt),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'resource-types'] }),
   });
 }
 
@@ -248,5 +309,21 @@ export function useIamRevokeAccess() {
   return useMutation({
     mutationFn: (grantId: string) => iamGrantService.revokeAccess(grantId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'grants'] }),
+  });
+}
+
+export function useIamRegisterRoleTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rt: { resourceType?: string; roleKey: string; displayName?: string; description?: string }) =>
+      iamGrantService.registerRoleTemplate(rt),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'role-templates'] }),
+  });
+}
+
+export function useIamExplainAccess() {
+  return useMutation({
+    mutationFn: (params: { resource: { type: string; id: string }; permission: string; subject: { type: string; id: string } }) =>
+      iamGrantService.explainAccess(params),
   });
 }

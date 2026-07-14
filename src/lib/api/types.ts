@@ -280,4 +280,4 @@ export type LocalUser = {
   disabled?: boolean;
 };
 
-export type Tab = 'users' | 'groups' | 'organizations' | 'projects' | 'grants' | 'resources' | 'permissions';
+export type Tab = 'users' | 'groups' | 'organizations' | 'projects' | 'grants' | 'resources' | 'permissions' | 'capabilities' | 'permissions-center';

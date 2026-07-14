@@ -6,6 +6,7 @@ import { IamPage } from '@/components/pages/iam-page';
 import { ExternalUsersPage } from '@/components/pages/users-page';
 import { GroupsPage } from '@/components/pages/groups-page';
 import { PermissionsBusinessPage } from '@/components/pages/permissions-business-page';
+import { PermissionsCenterPage } from '@/components/pages/permissions-center-page';
 import type { Tab } from '@/lib/api/types';
 
 const queryClient = new QueryClient({
@@ -21,6 +22,7 @@ function PageRouter({ tab, identityOrg }: { tab: Tab; identityOrg: string }) {
   if (tab === 'users') return <ExternalUsersPage identityOrg={identityOrg} />;
   if (tab === 'groups') return <GroupsPage identityOrg={identityOrg} />;
   if (tab === 'permissions') return <PermissionsBusinessPage identityOrg={identityOrg} />;
+  if (tab === 'permissions-center') return <PermissionsCenterPage identityOrg={identityOrg} />;
   return <IamPage tab={tab} />;
 }
 
