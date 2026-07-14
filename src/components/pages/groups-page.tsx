@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X,
   ChevronDown, ChevronRight, Folder, FolderOpen,
@@ -174,19 +174,30 @@ function collectDescendantIds(
 function buildGroupUsersMap(
   groups: IamGroup[],
   userById: Map<string, IamUser>,
+  allUsers: IamUser[],
 ): Map<string, IamUser[]> {
   const map = new Map<string, IamUser[]>();
+  // Seed from group.users (group-side membership, may contain usernames or IDs)
   for (const group of groups) {
     const gid = groupID(group);
     if (!gid) continue;
-    const ids = group.users || [];
     const users: IamUser[] = [];
-    for (const id of ids) {
+    for (const id of group.users || []) {
       const u = userById.get(id);
-      if (u) users.push(u);
+      if (u && !users.includes(u)) users.push(u);
     }
-    // Also include users whose orgId matches this group's id (direct membership)
     map.set(gid, users);
+  }
+  // Also join from user.groups (user-side membership) to catch memberships not
+  // reflected in group.users (e.g. users assigned via Casdoor directly).
+  for (const user of allUsers) {
+    for (const gid of user.groups || []) {
+      const existing = map.get(gid) || [];
+      if (!existing.includes(user)) {
+        existing.push(user);
+        map.set(gid, existing);
+      }
+    }
   }
   return map;
 }
@@ -459,15 +470,18 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const userById = useMemo(() => {
     const m = new Map<string, IamUser>();
     for (const u of allUsers) {
-      const id = userID(u);
-      if (id) m.set(id, u);
+      // Key by all possible aliases so group.users (which may contain usernames
+      // from Casdoor) can resolve against user IDs and vice versa.
+      for (const key of [userID(u), u.externalId, u.username]) {
+        if (key) m.set(key, u);
+      }
     }
     return m;
   }, [allUsers]);
 
   const childrenMap = useMemo(() => buildChildrenMap(groups, zoneId), [groups, zoneId]);
   const groupMap = useMemo(() => buildGroupMap(groups), [groups]);
-  const groupUsersMap = useMemo(() => buildGroupUsersMap(groups, userById), [groups, userById]);
+  const groupUsersMap = useMemo(() => buildGroupUsersMap(groups, userById, allUsers), [groups, userById, allUsers]);
   const rootGroups = childrenMap.get('') || [];
   const rootLabel = zone?.displayName || zone?.name || zoneId;
 
@@ -489,11 +503,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const assignableUsers = allUsers.filter((user) => !selectedGroupUserIds.has(userID(user)));
 
   // Auto-expand root-level groups on first load so the hierarchy is visible.
+  const didInitExpand = useRef(false);
   useEffect(() => {
-    if (rootGroups.length > 0 && expandedIds.size === 0) {
+    if (!didInitExpand.current && rootGroups.length > 0) {
+      didInitExpand.current = true;
       setExpandedIds(new Set(rootGroups.map(groupID).filter(Boolean)));
     }
-  }, [rootGroups, expandedIds.size]);
+  }, [rootGroups]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
