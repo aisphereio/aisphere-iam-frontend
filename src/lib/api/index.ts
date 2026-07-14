@@ -12,6 +12,7 @@ import type {
   IamResource,
   IamResourceBinding,
   IamRoleTemplate,
+  IamRoleImpact,
   IamGrant,
   IamRelationship,
   IamCheckPermissionRequest,
@@ -155,7 +156,7 @@ function normalizeIamGroup(input: unknown): IamGroup {
   const type = stringValue(record, 'type', 'groupType', 'group_type') || undefined;
   const path = stringValue(record, 'path', 'groupPath', 'group_path', 'fullPath', 'full_path') || undefined;
   // parentId may be present under multiple keys depending on JSON encoder
-  let parentId = stringValue(record, 'parentId', 'parent_id', 'parent', 'parentNode', 'parent_node', 'parentId');
+  const parentId = stringValue(record, 'parentId', 'parent_id', 'parent', 'parentNode', 'parent_node', 'parentId');
   // Derive parentId from path if missing. Casdoor typically encodes group
   // hierarchy as a slash-separated path like "/org/parent/child". We strip
   // the leading org segment and use the last segment as the child name and
@@ -530,20 +531,42 @@ export const iamResourceService = {
 
 /** IAM Grant Service */
 export const iamGrantService = {
-  registerRoleTemplate: (rt: { resourceType?: string; roleKey: string; displayName?: string; description?: string }) =>
+  registerRoleTemplate: (rt: { resourceType: string; roleKey: string; displayName?: string; description?: string; permissions?: string[] }) =>
     iamRequest<IamRoleTemplate>('/v1/iam/control-plane/role-templates', {
       method: 'POST',
-      body: JSON.stringify({ roleTemplate: rt }),
+      body: JSON.stringify({ roleTemplate: { ...rt, permissions: rt.permissions || [] } }),
     }),
 
-  listRoleTemplates: () =>
-    iamRequest<{ roleTemplates: IamRoleTemplate[] }>('/v1/iam/control-plane/role-templates'),
+  updateRoleTemplate: (input: { id: string; displayName?: string; description?: string; permissions: string[]; expectedVersion: number }) =>
+    iamRequest<IamRoleTemplate>(`/v1/iam/control-plane/role-templates/${encodeURIComponent(input.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+
+  disableRoleTemplate: (input: { id: string; expectedVersion: number; confirmActiveGrants: boolean }) =>
+    iamRequest<IamRoleTemplate>(`/v1/iam/control-plane/role-templates/${encodeURIComponent(input.id)}:disable`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  previewRoleTemplateImpact: (input: { id: string; permissions: string[] }) =>
+    iamRequest<IamRoleImpact>(`/v1/iam/control-plane/role-templates/${encodeURIComponent(input.id)}:preview-impact`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listRoleTemplates: (params?: { resourceType?: string; roleKey?: string; enabled?: boolean }) =>
+    iamRequest<{ roleTemplates: IamRoleTemplate[] }>(
+      `/v1/iam/control-plane/role-templates${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
+    ),
 
   grantAccess: (grant: {
     resource?: { type: string; id: string };
     roleKey?: string;
-    subject?: { type: string; id: string };
+    subject?: { type: string; id: string; relation?: string };
+    source?: string;
     reason?: string;
+    expiresAt?: string;
   }) =>
     iamRequest<IamGrant>('/v1/iam/control-plane/grants', {
       method: 'POST',

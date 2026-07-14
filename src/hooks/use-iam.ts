@@ -297,10 +297,15 @@ export function useIamGrantAccess() {
     mutationFn: (grant: {
       resource?: { type: string; id: string };
       roleKey?: string;
-      subject?: { type: string; id: string };
+      subject?: { type: string; id: string; relation?: string };
+      source?: string;
       reason?: string;
+      expiresAt?: string;
     }) => iamGrantService.grantAccess(grant),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'grants'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['iam', 'grants'] });
+      qc.invalidateQueries({ queryKey: ['iam', 'role-templates'] });
+    },
   });
 }
 
@@ -315,9 +320,33 @@ export function useIamRevokeAccess() {
 export function useIamRegisterRoleTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (rt: { resourceType?: string; roleKey: string; displayName?: string; description?: string }) =>
+    mutationFn: (rt: { resourceType: string; roleKey: string; displayName?: string; description?: string; permissions?: string[] }) =>
       iamGrantService.registerRoleTemplate(rt),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'role-templates'] }),
+  });
+}
+
+export function useIamUpdateRoleTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; displayName?: string; description?: string; permissions: string[]; expectedVersion: number }) =>
+      iamGrantService.updateRoleTemplate(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'role-templates'] }),
+  });
+}
+
+export function useIamDisableRoleTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; expectedVersion: number; confirmActiveGrants: boolean }) =>
+      iamGrantService.disableRoleTemplate(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'role-templates'] }),
+  });
+}
+
+export function useIamPreviewRoleTemplateImpact() {
+  return useMutation({
+    mutationFn: (input: { id: string; permissions: string[] }) => iamGrantService.previewRoleTemplateImpact(input),
   });
 }
 

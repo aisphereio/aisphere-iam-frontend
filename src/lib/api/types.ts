@@ -201,6 +201,20 @@ export interface IamRoleTemplate {
   description?: string;
   relation?: string;
   builtIn?: boolean;
+  enabled?: boolean;
+  sortOrder?: number;
+  permissions?: string[];
+  activeGrantCount?: number;
+  version?: number;
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface IamRoleImpact {
+  activeGrantCount: number;
+  addedPermissions: string[];
+  removedPermissions: string[];
 }
 
 /** IAM Grant */
