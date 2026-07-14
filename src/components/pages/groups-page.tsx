@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Building2, GitBranch, Plus, RefreshCw, Save, Trash2, X,
   ChevronDown, ChevronRight, Folder, FolderOpen,
-  UserMinus, UserPlus, CornerDownRight, CornerUpRight, Network, Layers,
+  UserMinus, UserPlus, CornerDownRight, Network, Layers,
   AlertTriangle, Bug, UserRound, Mail, Phone, Fingerprint,
   Tag, ExternalLink, MapPin, Users,
 } from 'lucide-react';
@@ -15,6 +15,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useMe } from '@/hooks/use-auth';
 import {
@@ -436,6 +441,8 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const [editing, setEditing] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [pendingMove, setPendingMove] = useState<{ groupName: string; parentName: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ groupId: string; groupName: string } | null>(null);
 
   const zoneId = identityOrgProp?.trim() || defaultZoneFromPrincipal(me);
   const { data: zone } = useIamDirectoryOrganization(zoneId);
@@ -570,6 +577,26 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     }
   };
 
+  const doUpdateGroup = async () => {
+    if (!selectedGroup) return;
+    const newParentId = form.parentId.trim() || undefined;
+    try {
+      await updateGroup.mutateAsync({
+        orgId: zoneId,
+        groupId: groupID(selectedGroup),
+        parentId: newParentId,
+        name: form.name.trim(),
+        displayName: form.displayName.trim() || undefined,
+        type: form.type.trim() || selectedGroup.type || 'Physical',
+      });
+      toast.success(newParentId !== (selectedGroup.parentId || undefined) ? '组织已移动' : '组织已更新');
+      setEditing(false);
+      await refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '更新组织失败');
+    }
+  };
+
   const handleUpdate = async () => {
     if (!selectedGroup) return;
     if (!form.name.trim()) {
@@ -589,64 +616,26 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         return;
       }
     }
-    try {
-      await updateGroup.mutateAsync({
-        orgId: zoneId,
-        groupId: groupID(selectedGroup),
-        parentId: newParentId,
-        name: form.name.trim(),
-        displayName: form.displayName.trim() || undefined,
-        type: form.type.trim() || selectedGroup.type || 'Physical',
-      });
-      toast.success('组织已更新');
-      setEditing(false);
-      await refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '更新组织失败');
-    }
-  };
-
-  /** Quick-move the selected group under a different parent (or to top-level). */
-  const handleMoveToParent = async (newParentId: string) => {
-    if (!selectedGroup) return;
-    const id = groupID(selectedGroup);
-    const parent = newParentId.trim();
-    // Self-reference guard
-    if (parent && parent === id) {
-      toast.error('不能把组织设为自己的父级');
+    // If parent is changing, ask for confirmation before mutating
+    const currentParent = selectedGroup.parentId?.trim() || '';
+    if ((newParentId || '') !== currentParent) {
+      const parentName = newParentId
+        ? groupLabel(groupMap.get(newParentId)) || newParentId
+        : '顶级（无父级）';
+      setPendingMove({ groupName: groupLabel(selectedGroup) || groupID(selectedGroup), parentName });
       return;
     }
-    // Cycle guard: cannot move into own descendant
-    if (parent) {
-      const descendantIds = collectDescendantIds(id, childrenMap);
-      if (descendantIds.has(parent)) {
-        toast.error('不能把组织移动到自己的下级组织下（会形成环）');
-        return;
-      }
-    }
-    // No-op if unchanged
-    if ((parent || '') === (selectedGroup.parentId || '').trim()) return;
-    try {
-      await updateGroup.mutateAsync({
-        orgId: zoneId,
-        groupId: id,
-        parentId: parent || undefined,
-        name: selectedGroup.name || id,
-        displayName: selectedGroup.displayName || undefined,
-        type: selectedGroup.type || 'Physical',
-      });
-      toast.success(parent ? '组织已挂到新父级下' : '组织已移至顶级');
-      setForm((prev) => ({ ...prev, parentId: parent }));
-      await refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '移动组织失败');
-    }
+    await doUpdateGroup();
   };
 
-  const handleDelete = async () => {
-    if (!selectedGroup) return;
+  const confirmMove = async () => {
+    setPendingMove(null);
+    await doUpdateGroup();
+  };
+
+  const doDeleteGroup = async (groupId: string) => {
     try {
-      await deleteGroup.mutateAsync({ orgId: zoneId, groupId: groupID(selectedGroup), recursive: false });
+      await deleteGroup.mutateAsync({ orgId: zoneId, groupId, recursive: false });
       toast.success('组织已删除');
       setSelection({ kind: 'root' });
       setSelectedUserId('');
@@ -655,6 +644,18 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '删除组织失败');
     }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedGroup) return;
+    setPendingDelete({ groupId: groupID(selectedGroup), groupName: groupLabel(selectedGroup) || groupID(selectedGroup) });
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { groupId } = pendingDelete;
+    setPendingDelete(null);
+    await doDeleteGroup(groupId);
   };
 
   const handleAssignUser = async () => {
@@ -991,25 +992,6 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                   </div>
                 </div>
 
-                {/* 移动到父级 */}
-                <div className="rounded-md border bg-muted/20 p-2.5 space-y-2">
-                  <div className="text-[10px] font-medium text-muted-foreground flex items-center gap-1.5">
-                    <CornerUpRight className="h-3 w-3" />
-                    移动到父级
-                    <span className="text-muted-foreground/70 font-normal">（把本组织挂到另一个组织下，或移至顶级）</span>
-                  </div>
-                  <GroupTreePicker
-                    groups={groups}
-                    rootLabel={rootLabel}
-                    rootId={zoneId}
-                    value={selectedGroup.parentId || ''}
-                    onChange={handleMoveToParent}
-                    excludeId={selectedId}
-                    placeholder={selectedGroup.parentId ? '当前父级（点击更换）' : '（当前为顶级组织）'}
-                    className="w-full"
-                  />
-                </div>
-
                 {/* 子组织 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -1192,6 +1174,48 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
           </Card>
         ) : null}
       </div>
+
+      {/* ─── Confirmation dialogs ─── */}
+      <AlertDialog open={!!pendingMove} onOpenChange={(v) => !v && setPendingMove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认移动组织</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                将「{pendingMove?.groupName}」移动到「{pendingMove?.parentName}」下
+                {pendingMove?.parentName === '顶级（无父级）' ? '' : '作为子组织'}？
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMove}>
+              确认移动
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除组织</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                确定删除「{pendingDelete?.groupName}」？此操作不可撤销。
+                <br />
+                若该组织下存在子组织或成员，删除将失败（需先清空下级）。
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
