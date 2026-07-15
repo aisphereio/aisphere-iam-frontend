@@ -34,6 +34,7 @@ import {
 } from '@/hooks/use-iam';
 import type { IamGroup, IamPrincipal, IamUser } from '@/lib/api/types';
 import { GroupTreePicker } from './group-tree-picker';
+import { UserPicker } from './user-picker';
 import {
   buildChildrenMap,
   buildGroupMap,
@@ -959,17 +960,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                       <div className="rounded-xl border bg-muted/20 p-3">
                         <div className="mb-2 text-xs font-medium">添加成员</div>
                         <div className="flex flex-col gap-2 md:flex-row">
-                          <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={assignableUsers.length === 0}>
-                            <SelectTrigger className="h-9 flex-1 text-xs">
-                              <SelectValue placeholder={assignableUsers.length === 0 ? '没有可添加的用户' : '选择要加入的用户'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {assignableUsers.map((user) => {
-                                const id = userID(user);
-                                return id ? <SelectItem key={id} value={id}>{userLabel(user)}</SelectItem> : null;
-                              })}
-                            </SelectContent>
-                          </Select>
+                          <UserPicker
+                            users={assignableUsers}
+                            value={selectedUserId}
+                            onChange={setSelectedUserId}
+                            disabled={assignableUsers.length === 0}
+                            className="flex-1"
+                          />
                           <Button size="sm" className="h-9" disabled={!selectedUserId || assignUser.isPending} onClick={handleAssignUser}>
                             <UserPlus className="mr-1.5 h-3.5 w-3.5" />加入当前组织
                           </Button>
