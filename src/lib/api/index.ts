@@ -502,6 +502,41 @@ export const iamAuthzAdminApi = {
 };
 
 /** IAM Project Service (Control Plane) */
+
+// LifecycleStatus enum (proto3): ACTIVE=1, ARCHIVED=2, DELETED=3, DISABLED=4.
+const PROJECT_STATUS_MAP: Record<number, string> = { 1: 'ACTIVE', 2: 'ARCHIVED', 3: 'DELETED', 4: 'DISABLED' };
+// ProjectVisibility enum (proto3): PRIVATE=1, ORG=2, PUBLIC=3.
+const PROJECT_VISIBILITY_MAP: Record<number, string> = { 1: 'PRIVATE', 2: 'ORG', 3: 'PUBLIC' };
+
+function normalizeIamProject(input: unknown): IamProject {
+  const record = asRecord(input);
+  const rawStatus = valueOf(record, 'status');
+  const rawVisibility = valueOf(record, 'visibility');
+  const status = typeof rawStatus === 'number' ? (PROJECT_STATUS_MAP[rawStatus] || String(rawStatus))
+    : typeof rawStatus === 'string' ? rawStatus.toUpperCase() : undefined;
+  const visibility = typeof rawVisibility === 'number' ? (PROJECT_VISIBILITY_MAP[rawVisibility] || String(rawVisibility))
+    : typeof rawVisibility === 'string' ? rawVisibility.toUpperCase() : undefined;
+  return {
+    id: stringValue(record, 'id', 'projectId', 'project_id') || '',
+    orgId: stringValue(record, 'orgId', 'org_id', 'owner') || '',
+    slug: stringValue(record, 'slug') || '',
+    displayName: stringValue(record, 'displayName', 'display_name'),
+    description: stringValue(record, 'description'),
+    status,
+    visibility,
+    labels: record['labels'] as Record<string, string> | undefined,
+    annotations: record['annotations'] as Record<string, string> | undefined,
+    metadata: record['metadata'] as Record<string, string> | undefined,
+    createdBy: stringValue(record, 'createdBy', 'created_by'),
+    owners: stringListValue(record, 'owners'),
+    joined: boolValue(record, 'joined'),
+    canManage: boolValue(record, 'canManage', 'can_manage'),
+    stats: (valueOf(record, 'stats') as IamProject['stats']) || undefined,
+    createdAt: stringValue(record, 'createdAt', 'created_at'),
+    updatedAt: stringValue(record, 'updatedAt', 'updated_at'),
+  };
+}
+
 export const iamProjectApi = {
   createOrganization: (org: { slug: string; displayName?: string; casdoorOrg?: string }) =>
     iamRequest<IamCpOrganization>('/v1/iam/control-plane/orgs', {
@@ -529,26 +564,36 @@ export const iamProjectApi = {
   createProject: (project: { slug: string; displayName?: string; description?: string }) =>
     iamRequest<IamProject>('/v1/iam/control-plane/projects', {
       method: 'POST',
-      body: JSON.stringify(project),
-    }),
+      body: JSON.stringify({
+        slug: project.slug,
+        display_name: project.displayName,
+        description: project.description,
+      }),
+    }).then(normalizeIamProject),
 
   getProject: (projectId: string) =>
-    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`),
+    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`).then(normalizeIamProject),
 
   listProjects: () =>
-    iamRequest<{ projects: IamProject[] }>('/v1/iam/control-plane/projects'),
+    iamRequest<{ projects: IamProject[] }>('/v1/iam/control-plane/projects').then((data) => ({
+      projects: ((data as { projects?: unknown[] }).projects || []).map(normalizeIamProject),
+    })),
 
   updateProject: (projectId: string, project: Partial<IamProject>) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
-      body: JSON.stringify(project),
-    }),
+      body: JSON.stringify({
+        display_name: project.displayName,
+        description: project.description,
+        visibility: project.visibility,
+      }),
+    }).then(normalizeIamProject),
 
   archiveProject: (projectId: string) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/archive`, {
       method: 'POST',
       body: JSON.stringify({}),
-    }),
+    }).then(normalizeIamProject),
 
   listCapabilities: () =>
     iamRequest<{ capabilities: IamCapability[] }>('/v1/iam/control-plane/capabilities'),
