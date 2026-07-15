@@ -547,6 +547,7 @@ export const iamProjectApi = {
   archiveProject: (projectId: string) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/archive`, {
       method: 'POST',
+      body: JSON.stringify({}),
     }),
 
   listCapabilities: () =>
