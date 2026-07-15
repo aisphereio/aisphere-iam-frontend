@@ -526,8 +526,8 @@ export const iamProjectApi = {
       method: 'POST',
     }),
 
-  createProject: (orgId: string, project: { slug: string; displayName?: string; description?: string }) =>
-    iamRequest<IamProject>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}/projects`, {
+  createProject: (project: { slug: string; displayName?: string; description?: string }) =>
+    iamRequest<IamProject>('/v1/iam/control-plane/projects', {
       method: 'POST',
       body: JSON.stringify(project),
     }),

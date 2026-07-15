@@ -313,17 +313,15 @@ function ProjectsTab() {
   const [showEdit, setShowEdit] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ orgId: '', slug: '', displayName: '', description: '' });
+  const [form, setForm] = useState({ slug: '', displayName: '', description: '' });
   const [editForm, setEditForm] = useState({ id: '', displayName: '', description: '', visibility: '' });
   const [archiveTarget, setArchiveTarget] = useState<{ id: string; slug: string } | null>(null);
 
   const { data, isLoading, refetch } = useIamProjects();
-  const { data: orgsData } = useIamOrganizations();
   const createMutation = useIamCreateProject();
   const updateMutation = useIamUpdateProject();
   const archiveMutation = useIamArchiveProject();
   const projects = data?.projects || [];
-  const organizations = orgsData?.organizations || [];
 
   const filtered = search
     ? projects.filter((p) =>
@@ -333,11 +331,11 @@ function ProjectsTab() {
     : projects;
 
   const handleCreate = async () => {
-    if (!form.slug || !form.orgId) { toast.error(t('common.slugAndOrgRequired')); return; }
+    if (!form.slug) { toast.error(t('common.slugRequired')); return; }
     try {
-      await createMutation.mutateAsync({ orgId: form.orgId, slug: form.slug, displayName: form.displayName, description: form.description });
+      await createMutation.mutateAsync({ slug: form.slug, displayName: form.displayName, description: form.description });
       toast.success(t('common.projectCreated'));
-      setForm({ orgId: '', slug: '', displayName: '', description: '' });
+      setForm({ slug: '', displayName: '', description: '' });
       setShowCreate(false);
       refetch();
     } catch (e: unknown) {
@@ -454,17 +452,6 @@ function ProjectsTab() {
             <DialogDescription>{t('projects.dialogDescription')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('projects.organization')} *</label>
-              <Select value={form.orgId} onValueChange={(v) => setForm({ ...form, orgId: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t('projects.selectOrg')} /></SelectTrigger>
-                <SelectContent>
-                  {organizations.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.slug}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('projects.slug')} *</label>
               <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder={t('projects.slugPlaceholder')} className="h-8 text-xs" />

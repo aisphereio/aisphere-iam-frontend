@@ -163,8 +163,8 @@ export function useIamProject(projectId: string) {
 export function useIamCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (params: { orgId: string; slug: string; displayName?: string; description?: string }) =>
-      iamProjectApi.createProject(params.orgId, params),
+    mutationFn: (params: { slug: string; displayName?: string; description?: string }) =>
+      iamProjectApi.createProject(params),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'projects'] }),
   });
 }
