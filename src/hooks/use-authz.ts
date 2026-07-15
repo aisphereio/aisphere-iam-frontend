@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { iamAuthzAdminApi, iamGrantService, iamResourceService } from '@/lib/api';
+import type { IamCheckPermissionRequest, IamRelationship } from '@/lib/api/types';
 
 export function useIamAuthzSchema() {
   return useQuery({
@@ -52,5 +53,53 @@ export function useIamAuthzRelationships(params?: {
   return useQuery({
     queryKey: ['iam', 'authz', 'relationships', params],
     queryFn: () => iamAuthzAdminApi.listRelationships(params),
+  });
+}
+
+export function useIamWriteAuthzRelationship() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (relationship: IamRelationship) => iamAuthzAdminApi.writeRelationship(relationship),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'authz', 'relationships'] }),
+  });
+}
+
+export function useIamDeleteAuthzRelationships() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (filter: {
+      resourceType?: string;
+      resourceId?: string;
+      relation?: string;
+      subjectType?: string;
+      subjectId?: string;
+      subjectRelation?: string;
+    }) => iamAuthzAdminApi.deleteRelationships(filter),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'authz', 'relationships'] }),
+  });
+}
+
+export function useIamCheckAuthzPermission() {
+  return useMutation({
+    mutationFn: (req: IamCheckPermissionRequest) => iamAuthzAdminApi.checkPermission(req),
+  });
+}
+
+export function useIamExplainAuthzPermission() {
+  return useMutation({
+    mutationFn: (req: IamCheckPermissionRequest) => iamAuthzAdminApi.explainPermission(req),
+  });
+}
+
+export function useIamEffectivePermissions() {
+  return useMutation({
+    mutationFn: (params: {
+      subjectType: string;
+      subjectId: string;
+      subjectRelation?: string;
+      resourceType: string;
+      resourceId: string;
+      permissions?: string[];
+    }) => iamAuthzAdminApi.effectivePermissions(params),
   });
 }
