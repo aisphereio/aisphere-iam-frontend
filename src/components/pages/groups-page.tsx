@@ -7,7 +7,7 @@ import {
   UserMinus, UserPlus, CornerDownRight, Network, Layers,
   AlertTriangle, Bug, UserRound, Mail, Phone, Fingerprint,
   Tag, ExternalLink, MapPin,
-  Search,
+  Search, Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +34,7 @@ import {
 } from '@/hooks/use-iam';
 import type { IamGroup, IamPrincipal, IamUser } from '@/lib/api/types';
 import { GroupTreePicker } from './group-tree-picker';
+import { GroupMultiPicker } from './group-multi-picker';
 import { UserPicker } from './user-picker';
 import {
   buildChildrenMap,
@@ -41,6 +42,7 @@ import {
   buildGroupPath,
   buildGroupUsersMap,
   buildOrganizationPath,
+  buildUserGroupsMap,
   collectDescendantIds,
   collectDescendants,
   groupId as groupID,
@@ -342,6 +344,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const [pendingDelete, setPendingDelete] = useState<{ groupId: string; groupName: string } | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [directoryQuery, setDirectoryQuery] = useState('');
+  const [groupPickerUser, setGroupPickerUser] = useState<IamUser | null>(null);
 
   const zoneId = identityOrgProp?.trim() || defaultZoneFromPrincipal(me);
   const { data: zone } = useIamDirectoryOrganization(zoneId);
@@ -370,6 +373,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
   const childrenMap = useMemo(() => buildChildrenMap(groups, zoneId), [groups, zoneId]);
   const groupMap = useMemo(() => buildGroupMap(groups), [groups]);
   const groupUsersMap = useMemo(() => buildGroupUsersMap(groups, userById, allUsers), [groups, userById, allUsers]);
+  const userGroupsMap = useMemo(() => buildUserGroupsMap(groups, userById, allUsers, groupMap), [groups, userById, allUsers, groupMap]);
   const rootGroups = useMemo(() => childrenMap.get('') || [], [childrenMap]);
   const rootLabel = zone?.displayName || zone?.name || zoneId;
 
@@ -513,7 +517,6 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         orgId: zoneId,
         groupId: groupID(selectedGroup),
         parentId: newParentId,
-        name: form.name.trim(),
         displayName: form.displayName.trim() || undefined,
         type: form.type.trim() || selectedGroup.type || 'Physical',
       });
@@ -526,10 +529,6 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
 
   const handleUpdate = async () => {
     if (!selectedGroup) return;
-    if (!form.name.trim()) {
-      toast.error('组织名称不能为空');
-      return;
-    }
     const newParentId = form.parentId.trim() || undefined;
     if (newParentId && newParentId === groupID(selectedGroup)) {
       toast.error('不能把组织设为自己的父级');
@@ -612,6 +611,52 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     }
   };
 
+  // Multi-group management: reconcile a user's memberships to a desired set.
+  // Computes the diff between current memberships and the desired set, then
+  // issues assign calls for additions and remove calls for removals.
+  const handleReconcileUserGroups = async (user: IamUser, desiredGroupIds: string[]) => {
+    const uid = userID(user);
+    if (!uid) return;
+    const current = new Set(userGroupMemberships.map((g) => groupID(g)).filter(Boolean));
+    const desired = new Set(desiredGroupIds);
+    const toAdd = [...desired].filter((id) => !current.has(id));
+    const toRemove = [...current].filter((id) => !desired.has(id));
+    setGroupPickerUser(null);
+    try {
+      for (const gid of toAdd) {
+        await assignUser.mutateAsync({ orgId: zoneId, groupId: gid, userId: uid });
+      }
+      for (const gid of toRemove) {
+        await removeUser.mutateAsync({ orgId: zoneId, groupId: gid, userId: uid });
+      }
+      if (toAdd.length || toRemove.length) {
+        const parts: string[] = [];
+        if (toAdd.length) parts.push(`加入 ${toAdd.length} 个`);
+        if (toRemove.length) parts.push(`移出 ${toRemove.length} 个`);
+        toast.success(`所属组织已更新（${parts.join('，')}）`);
+      }
+      await refetch();
+      await refetchSelectedGroupUsers();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '更新所属组织失败');
+      await refetch();
+    }
+  };
+
+  // Remove a user from a specific group directly from the user detail panel.
+  const handleRemoveUserFromGroup = async (user: IamUser, groupId: string) => {
+    const uid = userID(user);
+    if (!uid) return;
+    try {
+      await removeUser.mutateAsync({ orgId: zoneId, groupId, userId: uid });
+      toast.success('用户已移出该组织');
+      await refetch();
+      await refetchSelectedGroupUsers();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '移出组织失败');
+    }
+  };
+
   // Compute descendant rows for the detail panel's "下级组织" section
   const descendantRows = useMemo(() => {
     if (!selectedId) {
@@ -620,13 +665,16 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     return collectDescendants(selectedId, childrenMap);
   }, [selectedId, rootGroups, childrenMap]);
 
-  // Compute groups this user belongs to (for the person detail panel)
+  // Compute groups this user belongs to (for the person detail panel).
+  // Uses the alias-aware, bidirectional userGroupsMap so memberships resolve
+  // correctly even when group.users holds Casdoor usernames instead of
+  // canonical IDs, or when only user.groups was populated by the backend.
   const userGroupMemberships = useMemo(() => {
     if (selection.kind !== 'user') return [];
     const uid = userID(selection.user);
     if (!uid) return [];
-    return groups.filter((g) => (g.users || []).includes(uid));
-  }, [selection, groups]);
+    return userGroupsMap.get(uid) || [];
+  }, [selection, userGroupsMap]);
 
   const contextGroup = selection.kind === 'group'
     ? selection.group
@@ -1070,24 +1118,46 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                     所属组织
                     <Badge variant="secondary" className="text-[9px]">{userGroupMemberships.length}</Badge>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 text-[11px]"
+                    onClick={() => setGroupPickerUser(selection.user)}
+                  >
+                    <UserPlus className="h-3 w-3" />
+                    管理组织
+                  </Button>
                 </div>
                 <div className="space-y-1.5">
                   {userGroupMemberships.length === 0 ? (
                     <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-                      该成员当前未归属任何组织。可在左侧树的组织节点详情里"添加成员"。
+                      该成员当前未归属任何组织。点击上方"管理组织"加入组织。
                     </div>
                   ) : userGroupMemberships.map((group) => {
                     const gid = groupID(group);
                     const path = buildGroupPath(group, groupMap, rootLabel).join(' › ');
                     return (
-                      <ChildGroupCard
-                        key={gid}
-                        group={group}
-                        path={path}
-                        memberCount={groupUsersMap.get(gid)?.length || 0}
-                        childCount={childrenMap.get(gid)?.length || 0}
-                        onClick={() => handleSelectGroup(group)}
-                      />
+                      <div key={gid} className="group relative">
+                        <ChildGroupCard
+                          group={group}
+                          path={path}
+                          memberCount={groupUsersMap.get(gid)?.length || 0}
+                          childCount={childrenMap.get(gid)?.length || 0}
+                          onClick={() => handleSelectGroup(group)}
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                          title="移出此组织"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveUserFromGroup(selection.user, gid);
+                          }}
+                        >
+                          <UserMinus className="h-3 w-3" />
+                        </Button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1186,6 +1256,20 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         onCreate={(params) => handleCreate(params)}
         createPending={createGroup.isPending}
       />
+
+      {/* ─── Multi-group membership picker (user detail panel) ─── */}
+      <GroupMultiPicker
+        open={!!groupPickerUser}
+        onOpenChange={(v) => !v && setGroupPickerUser(null)}
+        groups={groups}
+        rootLabel={rootLabel}
+        rootId={zoneId}
+        currentMemberIds={new Set(userGroupMemberships.map((g) => groupID(g)).filter(Boolean))}
+        onConfirm={(desiredGroupIds) => {
+          if (groupPickerUser) handleReconcileUserGroups(groupPickerUser, desiredGroupIds);
+        }}
+        busy={assignUser.isPending || removeUser.isPending}
+      />
     </>
   );
 }
@@ -1229,8 +1313,12 @@ function OrganizationManagementCard({
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">组织名称</label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" placeholder="platform" />
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Lock className="h-3 w-3" />
+                  组织名称
+                  <span className="text-[10px] text-muted-foreground/70">（创建后不可修改）</span>
+                </label>
+                <Input value={form.name} readOnly className="h-8 text-xs bg-muted/50 text-muted-foreground cursor-not-allowed" placeholder="platform" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">显示名</label>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  Building2, Folder, KeyRound, ShieldCheck, Database,
+  Folder, KeyRound, ShieldCheck, Database,
   Search, Plus, Pencil, Trash2, RefreshCw, Lightbulb, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,10 +28,6 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  useIamOrganizations,
-  useIamCreateOrganization,
-  useIamUpdateOrganization,
-  useIamArchiveOrganization,
   useIamProjects,
   useIamCreateProject,
   useIamUpdateProject,
@@ -55,7 +51,7 @@ import {
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { ExternalUsersPage } from './users-page';
-import type { IamCpOrganization, IamProject, IamResourceType, Tab } from '@/lib/api/types';
+import type { IamProject, IamResourceType, Tab } from '@/lib/api/types';
 
 // ─── Main IAM Page ─────────────────────────────────────────────────────
 
@@ -63,8 +59,6 @@ export function IamPage({ tab }: { tab: Tab }) {
   switch (tab) {
     case 'users':
       return <ExternalUsersPage />;
-    case 'organizations':
-      return <OrganizationsTab />;
     case 'projects':
       return <ProjectsTab />;
     case 'grants':
@@ -76,233 +70,6 @@ export function IamPage({ tab }: { tab: Tab }) {
     default:
       return <ExternalUsersPage />;
   }
-}
-
-// ─── Organizations Tab ─────────────────────────────────────────────────
-
-function OrganizationsTab() {
-  const t = useT();
-  const [showCreate, setShowCreate] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ slug: '', displayName: '', casdoorOrg: '' });
-  const [editForm, setEditForm] = useState({ id: '', displayName: '', plan: '', region: '' });
-  const [archiveTarget, setArchiveTarget] = useState<{ id: string; slug: string } | null>(null);
-
-  const { data, isLoading, refetch } = useIamOrganizations();
-  const createMutation = useIamCreateOrganization();
-  const updateMutation = useIamUpdateOrganization();
-  const archiveMutation = useIamArchiveOrganization();
-  const organizations = data?.organizations || [];
-
-  const filtered = search
-    ? organizations.filter((o) =>
-        (o.slug || '').toLowerCase().includes(search.toLowerCase()) ||
-        (o.displayName || '').toLowerCase().includes(search.toLowerCase()),
-      )
-    : organizations;
-
-  const handleCreate = async () => {
-    if (!form.slug) { toast.error(t('common.slugRequired')); return; }
-    try {
-      await createMutation.mutateAsync(form);
-      toast.success(t('common.organizationCreated'));
-      setForm({ slug: '', displayName: '', casdoorOrg: '' });
-      setShowCreate(false);
-      refetch();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t('common.createFailed'));
-    }
-  };
-
-  const handleEdit = (org: IamCpOrganization) => {
-    setEditForm({ id: org.id, displayName: org.displayName || '', plan: org.plan || '', region: org.region || '' });
-    setShowEdit(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editForm.id) return;
-    try {
-      await updateMutation.mutateAsync({
-        orgId: editForm.id,
-        org: { displayName: editForm.displayName, plan: editForm.plan, region: editForm.region },
-      });
-      toast.success(t('common.organizationUpdated'));
-      setShowEdit(false);
-      refetch();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t('common.updateFailed'));
-    }
-  };
-
-  const handleArchiveClick = (org: IamCpOrganization) => {
-    setArchiveTarget({ id: org.id, slug: org.slug });
-    setShowArchiveConfirm(true);
-  };
-
-  const handleArchiveConfirm = async () => {
-    if (!archiveTarget) return;
-    try {
-      await archiveMutation.mutateAsync(archiveTarget.id);
-      toast.success(t('common.organizationArchived'));
-      setShowArchiveConfirm(false);
-      setArchiveTarget(null);
-      refetch();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t('common.deleteFailed'));
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3 text-xs">
-        <div className="flex items-start gap-2">
-          <Building2 className="h-4 w-4 mt-0.5 text-violet-500 shrink-0" />
-          <div className="space-y-1">
-            <div className="font-medium text-foreground/80">平台组织（CP Organizations）是租户级别的资源</div>
-            <div className="text-muted-foreground leading-relaxed">
-              每个 CP Organization 对应一个独立的租户，本身是扁平的。如果你需要管理组织内部的上下级层级关系
-              （例如：平台 → 业务线 → 团队 → 小组），请前往侧边栏
-              <span className="font-medium text-foreground/80">「身份目录 → 组织与用户组」</span>
-              ，那里有完整的多级组织树、嵌套卡片和成员管理界面。
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-none">
-          <Search className="h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder={t('orgs.search')}
-            className="h-8 w-full sm:w-64 text-xs"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Button size="sm" className="h-8" onClick={() => setShowCreate(true)}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> {t('orgs.create')}
-        </Button>
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">{t('orgs.slug')}</TableHead>
-                <TableHead className="text-xs">{t('orgs.displayName')}</TableHead>
-                <TableHead className="text-xs">{t('orgs.status')}</TableHead>
-                <TableHead className="text-xs">{t('orgs.casdoorOrg')}</TableHead>
-                <TableHead className="text-xs">{t('orgs.plan')}</TableHead>
-                <TableHead className="text-xs">{t('orgs.created')}</TableHead>
-                <TableHead className="text-xs w-20">{t('common.actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
-              )) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-6">{t('common.noOrganizations')}</TableCell></TableRow>
-              ) : filtered.map((org) => (
-                <TableRow key={org.id}>
-                  <TableCell className="font-medium text-xs">{org.slug}</TableCell>
-                  <TableCell className="text-xs">{org.displayName || '-'}</TableCell>
-                  <TableCell><Badge variant={org.status === 'ACTIVE' ? 'default' : 'secondary'} className="text-[10px]">{org.status}</Badge></TableCell>
-                  <TableCell className="text-xs font-mono">{org.casdoorOrg || '-'}</TableCell>
-                  <TableCell className="text-xs">{org.plan || '-'}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{org.createdAt ? new Date(org.createdAt).toLocaleDateString() : '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleEdit(org)}>
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleArchiveClick(org)}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Create Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('orgs.dialogTitle')}</DialogTitle>
-            <DialogDescription>{t('orgs.dialogDescription')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('orgs.slug')} *</label>
-              <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder={t('orgs.slugPlaceholder')} className="h-8 text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('orgs.displayName')}</label>
-              <Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder={t('orgs.displayNamePlaceholder')} className="h-8 text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('orgs.casdoorOrg')}</label>
-              <Input value={form.casdoorOrg} onChange={(e) => setForm({ ...form, casdoorOrg: e.target.value })} placeholder={t('orgs.casdoorPlaceholder')} className="h-8 text-xs" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>{t('orgs.cancel')}</Button>
-            <Button size="sm" onClick={handleCreate} disabled={createMutation.isPending}>{t('orgs.create')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={showEdit} onOpenChange={setShowEdit}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('orgs.editDialogTitle')}</DialogTitle>
-            <DialogDescription>{t('orgs.editDialogDescription')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('orgs.displayName')}</label>
-              <Input value={editForm.displayName} onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })} placeholder={t('orgs.displayNamePlaceholder')} className="h-8 text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('orgs.plan')}</label>
-              <Input value={editForm.plan} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })} placeholder={t('orgs.plan')} className="h-8 text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('orgs.region')}</label>
-              <Input value={editForm.region} onChange={(e) => setEditForm({ ...editForm, region: e.target.value })} placeholder={t('orgs.regionPlaceholder')} className="h-8 text-xs" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowEdit(false)}>{t('orgs.cancel')}</Button>
-            <Button size="sm" onClick={handleSaveEdit} disabled={updateMutation.isPending}>{t('common.update')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Archive Confirmation Dialog */}
-      <Dialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('orgs.archive')}</DialogTitle>
-            <DialogDescription>
-              {t('orgs.confirmArchive')} {archiveTarget && <span className="font-mono">({archiveTarget.slug})</span>}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => { setShowArchiveConfirm(false); setArchiveTarget(null); }}>{t('orgs.cancel')}</Button>
-            <Button variant="destructive" size="sm" onClick={handleArchiveConfirm} disabled={archiveMutation.isPending}>{t('orgs.archive')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
 }
 
 // ─── Projects Tab ──────────────────────────────────────────────────────

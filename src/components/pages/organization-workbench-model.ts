@@ -131,6 +131,58 @@ export function buildGroupUsersMap(
   return map;
 }
 
+/**
+ * Build the reverse map: userId → IamGroup[] (the groups a user belongs to).
+ *
+ * Mirrors {@link buildGroupUsersMap} in being bidirectional and alias-aware:
+ * - Direction 1: Group.users[] entries are resolved through the alias-keyed
+ *   userById map (Casdoor may store usernames, not canonical IDs).
+ * - Direction 2: User.groups[] entries are resolved through groupMap (which
+ *   also catches groups whose .users wasn't populated by the backend).
+ *
+ * Both directions are merged and de-duplicated so the result is reliable
+ * regardless of which side the backend populated.
+ */
+export function buildUserGroupsMap(
+  groups: IamGroup[],
+  userById: Map<string, IamUser>,
+  allUsers: IamUser[],
+  groupMap: Map<string, IamGroup>,
+): Map<string, IamGroup[]> {
+  const map = new Map<string, IamGroup[]>();
+  // Direction 1: Group.users → resolve member via alias map.
+  for (const group of groups) {
+    const gid = groupId(group);
+    if (!gid) continue;
+    for (const memberId of group.users || []) {
+      const user = userById.get(memberId);
+      if (!user) continue;
+      const uid = userId(user);
+      if (!uid) continue;
+      const list = map.get(uid) || [];
+      if (!list.some((g) => groupId(g) === gid)) {
+        list.push(group);
+        map.set(uid, list);
+      }
+    }
+  }
+  // Direction 2: User.groups → resolve group via groupMap.
+  for (const user of allUsers) {
+    const uid = userId(user);
+    if (!uid) continue;
+    for (const gid of user.groups || []) {
+      const group = groupMap.get(gid);
+      if (!group) continue;
+      const list = map.get(uid) || [];
+      if (!list.some((g) => groupId(g) === groupId(group))) {
+        list.push(group);
+        map.set(uid, list);
+      }
+    }
+  }
+  return map;
+}
+
 export function summarizeOrganization(
   group: IamGroup,
   childrenMap: Map<string, IamGroup[]>,
