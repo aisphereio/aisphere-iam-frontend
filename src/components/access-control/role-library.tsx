@@ -1,15 +1,18 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronRight, KeyRound, Plus, RefreshCw, Search, Shield, UserPlus } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, KeyRound, Plus, RefreshCw, Search, Shield, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { useIamDisableRoleTemplate, useIamResourceTypes, useIamRoleTemplates } from '@/hooks/use-iam';
 import type { IamRoleTemplate } from '@/lib/api/types';
+import { resourceLabel } from '@/lib/authz/schema-summary';
 import { roleScopeDescription } from '@/lib/authz/role-capabilities';
+import { cn } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { RoleDetailSheet } from './role-detail-sheet';
 import { RoleEditorDialog } from './role-editor-dialog';
@@ -33,8 +36,30 @@ export function RoleLibrary({ onAssign }: { onAssign: () => void }) {
       .filter((role) => !normalized || `${role.displayName} ${role.roleKey} ${role.resourceType}`.toLowerCase().includes(normalized))
       .sort((left, right) => Number(right.builtIn) - Number(left.builtIn) || (left.displayName || left.roleKey).localeCompare(right.displayName || right.roleKey));
   }, [query, roles]);
-  const adminRoles = filtered.filter((role) => role.resourceType === 'zone' || role.roleKey.startsWith('platform_') || role.roleKey.startsWith('zone_'));
-  const resourceRoles = filtered.filter((role) => !adminRoles.includes(role));
+
+  // Group roles by resource type, ordered by the resource hierarchy.
+  const grouped = useMemo(() => {
+    const map = new Map<string, IamRoleTemplate[]>();
+    for (const role of filtered) {
+      const key = role.resourceType || 'unknown';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(role);
+    }
+    const order = ['zone', 'group', 'iam_authz', 'iam', 'organization', 'project',
+      'skill_space', 'skill', 'git_namespace', 'git_repository',
+      'agent_space', 'agent', 'tool_space', 'tool',
+      'sandbox_space', 'sandbox', 'runtime_environment', 'deployment'];
+    return [...map.entries()]
+      .sort((a, b) => {
+        const ai = order.indexOf(a[0]), bi = order.indexOf(b[0]);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      })
+      .map(([type, groupRoles]) => ({
+        type,
+        label: resourceLabel(type),
+        roles: groupRoles.sort((l, r) => Number(r.builtIn) - Number(l.builtIn) || (l.displayName || l.roleKey).localeCompare(r.displayName || r.roleKey)),
+      }));
+  }, [filtered]);
 
   const openCreate = () => {
     setEditingRole(null);
@@ -116,10 +141,27 @@ export function RoleLibrary({ onAssign }: { onAssign: () => void }) {
       )}
 
       {!rolesQuery.isError && (
-        <>
-          <RoleSection title="平台与组织管理员" description="平台、组织和用户组级管理员角色。平台角色必须显式分配。" roles={adminRoles} onAssign={onAssign} onDetail={setDetailRole} onEdit={(role) => { setEditingRole(role); setCopyRole(null); setEditorOpen(true); }} onCopy={(role) => { setCopyRole(role); setEditingRole(null); setEditorOpen(true); }} onDisable={disable} />
-          <RoleSection title="业务资源角色" description="用于项目、Skill、Agent、仓库、运行环境等具体资源。" roles={resourceRoles} onAssign={onAssign} onDetail={setDetailRole} onEdit={(role) => { setEditingRole(role); setCopyRole(null); setEditorOpen(true); }} onCopy={(role) => { setCopyRole(role); setEditingRole(null); setEditorOpen(true); }} onDisable={disable} />
-        </>
+        <div className="space-y-2">
+          {grouped.length === 0 ? (
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">没有匹配的角色。</div>
+          ) : grouped.map(({ type, label, roles: groupRoles }) => (
+            <Collapsible key={type} defaultOpen className="rounded-xl border bg-card/60">
+              <CollapsibleTrigger className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium hover:bg-muted/30 [&[data-state=open]>svg:last-child]:rotate-180">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                  <Shield className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0 flex-1 font-semibold">{label}</span>
+                <Badge variant="secondary" className="shrink-0">{groupRoles.length}</Badge>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="border-t px-4 py-3">
+                <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                  {groupRoles.map((role) => <RoleCard key={role.id} role={role} onAssign={onAssign} onDetail={() => setDetailRole(role)} />)}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ))}
+        </div>
       )}
 
       <RoleEditorDialog open={editorOpen} onOpenChange={setEditorOpen} role={editingRole} copyFrom={copyRole} resourceTypes={resourceTypes} />
@@ -146,33 +188,6 @@ export function RoleLibrary({ onAssign }: { onAssign: () => void }) {
         onConfirm={confirmDisable}
       />
     </section>
-  );
-}
-
-function RoleSection({ title, description, roles, onAssign, onDetail, onEdit, onCopy, onDisable }: {
-  title: string;
-  description: string;
-  roles: IamRoleTemplate[];
-  onAssign: () => void;
-  onDetail: (role: IamRoleTemplate) => void;
-  onEdit: (role: IamRoleTemplate) => void;
-  onCopy: (role: IamRoleTemplate) => void;
-  onDisable: (role: IamRoleTemplate) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      {roles.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">没有匹配的角色。</div>
-      ) : (
-        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-          {roles.map((role) => <RoleCard key={role.id} role={role} onAssign={onAssign} onDetail={() => onDetail(role)} />)}
-        </div>
-      )}
-    </div>
   );
 }
 
