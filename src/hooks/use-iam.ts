@@ -7,7 +7,6 @@ import {
   iamResourceService,
   iamGrantService,
 } from '@/lib/api';
-import type { IamCpOrganization } from '@/lib/api/types';
 
 // ─── Directory Users (Casdoor External User Directory) ─────────────────
 
@@ -97,49 +96,6 @@ export function useIamRemoveUserFromGroup() {
       qc.invalidateQueries({ queryKey: ['iam', 'directory-groups', vars.orgId] });
       qc.invalidateQueries({ queryKey: ['iam', 'external-users', vars.orgId] });
     },
-  });
-}
-
-// ─── Control Plane Organizations ───────────────────────────────────────
-
-export function useIamOrganizations() {
-  return useQuery({
-    queryKey: ['iam', 'organizations'],
-    queryFn: () => iamProjectApi.listOrganizations(),
-  });
-}
-
-export function useIamOrganization(orgId: string) {
-  return useQuery({
-    queryKey: ['iam', 'organization', orgId],
-    queryFn: () => iamProjectApi.getOrganization(orgId),
-    enabled: Boolean(orgId),
-  });
-}
-
-export function useIamCreateOrganization() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (org: { slug: string; displayName?: string; casdoorOrg?: string }) =>
-      iamProjectApi.createOrganization(org),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'organizations'] }),
-  });
-}
-
-export function useIamUpdateOrganization() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ orgId, org }: { orgId: string; org: Partial<IamCpOrganization> }) =>
-      iamProjectApi.updateOrganization(orgId, org),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'organizations'] }),
-  });
-}
-
-export function useIamArchiveOrganization() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (orgId: string) => iamProjectApi.archiveOrganization(orgId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'organizations'] }),
   });
 }
 

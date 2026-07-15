@@ -19,7 +19,6 @@ interface TopbarProps {
 const tabLabels: Record<string, string> = {
   users: '身份目录',
   groups: '多级用户组',
-  organizations: '多级用户组',
   projects: 'nav.projects',
   grants: '访问控制',
   resources: 'nav.resources',

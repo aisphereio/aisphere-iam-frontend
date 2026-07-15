@@ -4,7 +4,6 @@ import type {
   IamUser,
   IamOrganization,
   IamGroup,
-  IamCpOrganization,
   IamProject,
   IamCapability,
   IamProjectCapability,
@@ -14,37 +13,17 @@ import type {
   IamRoleTemplate,
   IamRoleImpact,
   IamGrant,
-  IamRelationship,
   IamCheckPermissionRequest,
   IamCheckPermissionResponse,
   IamAuthzSchemaReply,
   IamAuthzRelationshipListReply,
   IamAuthzEffectivePermissionsReply,
-  LocalUser,
 } from './types';
 
 // ─── IAM Service API (aisphere-iam /v1/iam/*) ──────────────────────────
 
 function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   return request<T>(path, init);
-}
-
-function relationshipFilterBody(filter: {
-  resourceType?: string;
-  resourceId?: string;
-  relation?: string;
-  subjectType?: string;
-  subjectId?: string;
-  subjectRelation?: string;
-}) {
-  return {
-    resource_type: filter.resourceType,
-    resource_id: filter.resourceId,
-    relation: filter.relation,
-    subject_type: filter.subjectType,
-    subject_id: filter.subjectId,
-    subject_relation: filter.subjectRelation,
-  };
 }
 
 function checkPermissionBody(req: IamCheckPermissionRequest) {
@@ -106,8 +85,35 @@ function stringListValue(record: ApiRecord, ...keys: string[]): string[] | undef
     return items.length > 0 ? items : undefined;
   }
   if (typeof value === 'string') {
-    const items = value.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
+    const items = value.split(/[\s,;]+/).map((item) => String(item).trim()).filter(Boolean);
     return items.length > 0 ? items : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Normalize a proto timestamp value to an ISO date string.
+ * Handles: {seconds, nanos} object (protojson), ISO string, epoch seconds/ms.
+ */
+function timestampValue(record: ApiRecord, ...keys: string[]): string | undefined {
+  const value = valueOf(record, ...keys);
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  if (typeof value === 'number') {
+    // Treat large numbers as milliseconds, small as seconds.
+    const ms = value > 1e12 ? value : value * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  if (typeof value === 'object') {
+    const obj = value as { seconds?: number; nanos?: number };
+    if (typeof obj.seconds === 'number') {
+      const d = new Date(obj.seconds * 1000 + (obj.nanos ?? 0) / 1e6);
+      return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+    }
   }
   return undefined;
 }
@@ -141,8 +147,8 @@ function normalizeIamResourceType(input: unknown): IamResourceType {
     labels: stringMapValue(record, 'labels'),
     metadata: stringMapValue(record, 'metadata'),
     status: stringValue(record, 'status'),
-    createdAt: stringValue(record, 'createdAt', 'created_at'),
-    updatedAt: stringValue(record, 'updatedAt', 'updated_at'),
+    createdAt: timestampValue(record, 'createdAt', 'created_at'),
+    updatedAt: timestampValue(record, 'updatedAt', 'updated_at'),
   };
 }
 
@@ -162,8 +168,8 @@ function normalizeIamRoleTemplate(input: unknown): IamRoleTemplate {
     activeGrantCount: numberValue(record, 'activeGrantCount', 'active_grant_count'),
     version: numberValue(record, 'version'),
     metadata: recordValue(record, 'metadata'),
-    createdAt: stringValue(record, 'createdAt', 'created_at'),
-    updatedAt: stringValue(record, 'updatedAt', 'updated_at'),
+    createdAt: timestampValue(record, 'createdAt', 'created_at'),
+    updatedAt: timestampValue(record, 'updatedAt', 'updated_at'),
   };
 }
 
@@ -394,26 +400,6 @@ export const iamDirectoryApi = {
     ),
 };
 
-/** IAM Permission Service */
-export const iamPermissionApi = {
-  check: (req: IamCheckPermissionRequest) =>
-    iamRequest<IamCheckPermissionResponse>('/v1/iam/permissions/check', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    }),
-
-  writeRelationship: (relationship: IamRelationship) =>
-    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships', {
-      method: 'POST',
-      body: JSON.stringify(relationship),
-    }),
-
-  deleteRelationship: (relationship: IamRelationship) =>
-    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships/delete', {
-      method: 'POST',
-      body: JSON.stringify(relationship),
-    }),
-};
 
 /** IAM AuthZ Admin / Permission Console API */
 export const iamAuthzAdminApi = {
@@ -449,25 +435,6 @@ export const iamAuthzAdminApi = {
         subject_relation: params.subjectRelation,
       })}` : ''}`,
     ),
-
-  writeRelationship: (relationship: IamRelationship) =>
-    iamRequest<{ written: number; consistencyToken?: string }>('/v1/iam/authz/relationships', {
-      method: 'POST',
-      body: JSON.stringify({ relationships: [relationship] }),
-    }),
-
-  deleteRelationships: (filter: {
-    resourceType?: string;
-    resourceId?: string;
-    relation?: string;
-    subjectType?: string;
-    subjectId?: string;
-    subjectRelation?: string;
-  }) =>
-    iamRequest<{ deleted: number; consistencyToken?: string }>('/v1/iam/authz/relationships:delete', {
-      method: 'POST',
-      body: JSON.stringify({ filter: relationshipFilterBody(filter) }),
-    }),
 
   checkPermission: (req: IamCheckPermissionRequest) =>
     iamRequest<IamCheckPermissionResponse>('/v1/iam/authz/permissions:check', {
@@ -534,35 +501,12 @@ function normalizeIamProject(input: unknown): IamProject {
     joined: boolValue(record, 'joined'),
     canManage: boolValue(record, 'canManage', 'can_manage'),
     stats: (valueOf(record, 'stats') as IamProject['stats']) || undefined,
-    createdAt: stringValue(record, 'createdAt', 'created_at'),
-    updatedAt: stringValue(record, 'updatedAt', 'updated_at'),
+    createdAt: timestampValue(record, 'createdAt', 'created_at'),
+    updatedAt: timestampValue(record, 'updatedAt', 'updated_at'),
   };
 }
 
 export const iamProjectApi = {
-  createOrganization: (org: { slug: string; displayName?: string; casdoorOrg?: string }) =>
-    iamRequest<IamCpOrganization>('/v1/iam/control-plane/orgs', {
-      method: 'POST',
-      body: JSON.stringify(org),
-    }),
-
-  getOrganization: (orgId: string) =>
-    iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`),
-
-  listOrganizations: () =>
-    iamRequest<{ organizations: IamCpOrganization[] }>('/v1/iam/control-plane/orgs'),
-
-  updateOrganization: (orgId: string, org: Partial<IamCpOrganization>) =>
-    iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(org),
-    }),
-
-  archiveOrganization: (orgId: string) =>
-    iamRequest<{ success: boolean }>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}/archive`, {
-      method: 'POST',
-    }),
-
   createProject: (project: { slug: string; displayName?: string; description?: string }) =>
     iamRequest<IamProject>('/v1/iam/control-plane/projects', {
       method: 'POST',
@@ -715,20 +659,5 @@ export const iamGrantService = {
     iamRequest<{ allowed: boolean; steps: unknown[] }>('/v1/iam/control-plane/access:explain', {
       method: 'POST',
       body: JSON.stringify(params),
-    }),
-};
-
-// ─── Local User API ────────────────────────────────────────────────────
-
-export const localUserApi = {
-  list: () => request<{ users: LocalUser[] }>('/v1/users'),
-  save: (u: LocalUser) =>
-    request<LocalUser>('/v1/users', {
-      method: 'POST',
-      body: JSON.stringify(u),
-    }),
-  delete: (username: string) =>
-    request<{ success: boolean }>(`/v1/users/${encodeURIComponent(username)}`, {
-      method: 'DELETE',
     }),
 };
