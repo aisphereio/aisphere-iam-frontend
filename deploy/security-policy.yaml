@@ -48,7 +48,9 @@ spec:
             - name: Authorization
               valuePrefix: "Bearer "
         claimToHeaders:
-          - claim: sub
+          # sub → UUID (Casdoor JWT 的 id claim 是 UUID，sub claim 是用户名)
+          # 这样 x-aisphere-external-sub 就是 UUID，SpiceDB 权限检查能正确匹配
+          - claim: id
             header: x-aisphere-external-sub
           - claim: email
             header: x-aisphere-external-email
@@ -60,7 +62,7 @@ spec:
             header: x-aisphere-external-issuer
           - claim: owner
             header: x-aisphere-external-owner
-          - claim: id
+          - claim: sub
             header: x-aisphere-external-id
           - claim: displayName
             header: x-aisphere-external-display-name

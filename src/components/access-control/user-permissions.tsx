@@ -1,32 +1,53 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Route, Search, UserRound } from 'lucide-react';
+import { Route, Search, UserRound, Shield, Users, ArrowUpRight, Ban, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useIamExternalUsers, useIamGrants, useIamResourceTypes, useIamRoleTemplates } from '@/hooks/use-iam';
+import { useIamExternalUsers, useIamSubjectEntitlements, useIamRevokeAccess } from '@/hooks/use-iam';
 import { resourceLabel } from '@/lib/authz/schema-summary';
+import type { IamEntitlement, IamEntitlementSourceType } from '@/lib/api/types';
+
+/** Human-readable label for source type */
+function sourceLabel(source?: IamEntitlementSourceType): string {
+  switch (source) {
+    case 'DIRECT_GRANT': return '直接分配';
+    case 'GROUP_GRANT': return '通过用户组';
+    case 'PARENT_INHERITANCE': return '父资源继承';
+    case 'ORG_INHERITANCE': return '组织级权限';
+    case 'PLATFORM_INHERITANCE': return '平台级权限';
+    default: return '未知来源';
+  }
+}
+
+/** Icon for source type */
+function SourceIcon({ source }: { source?: IamEntitlementSourceType }) {
+  switch (source) {
+    case 'DIRECT_GRANT': return <Shield className="h-3.5 w-3.5 text-green-600" />;
+    case 'GROUP_GRANT': return <Users className="h-3.5 w-3.5 text-blue-600" />;
+    case 'PARENT_INHERITANCE': return <ArrowUpRight className="h-3.5 w-3.5 text-amber-600" />;
+    case 'ORG_INHERITANCE': return <Route className="h-3.5 w-3.5 text-purple-600" />;
+    case 'PLATFORM_INHERITANCE': return <Shield className="h-3.5 w-3.5 text-slate-600" />;
+    default: return <Info className="h-3.5 w-3.5 text-muted-foreground" />;
+  }
+}
 
 export function UserPermissions({ identityOrg }: { identityOrg: string }) {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showDirectOnly, setShowDirectOnly] = useState(false);
 
   const usersQuery = useIamExternalUsers(identityOrg, { pageSize: 500 });
-  const grantsQuery = useIamGrants(identityOrg, selectedUserId ? { subjectType: 'user', subjectId: selectedUserId } : undefined);
-  const resourceTypesQuery = useIamResourceTypes();
-  const rolesQuery = useIamRoleTemplates();
+  const entitlementsQuery = useIamSubjectEntitlements(
+    identityOrg,
+    selectedUserId ? { type: 'user', id: selectedUserId } : null,
+  );
+  const revokeAccess = useIamRevokeAccess(identityOrg);
 
   const users = usersQuery.data?.users || [];
-  const grants = grantsQuery.data?.grants || [];
-  const resourceTypes = resourceTypesQuery.data?.resourceTypes || [];
-  const roles = rolesQuery.data?.roleTemplates || [];
-
-  const roleMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const r of roles) map.set(r.roleKey, r.displayName || r.roleKey);
-    return map;
-  }, [roles]);
+  const entitlements = entitlementsQuery.data?.entitlements || [];
 
   const selectedUser = users.find((u) => u.id === selectedUserId);
 
@@ -41,22 +62,53 @@ export function UserPermissions({ identityOrg }: { identityOrg: string }) {
     );
   }, [users, searchQuery]);
 
-  // Group grants by resource type
-  const groupedGrants = useMemo(() => {
-    const map = new Map<string, typeof grants>();
-    for (const g of grants) {
-      const type = g.resource?.type || 'unknown';
+  // Filter entitlements
+  const displayEntitlements = useMemo(() => {
+    if (showDirectOnly) {
+      return entitlements.filter((e) => e.sourceType === 'DIRECT_GRANT');
+    }
+    return entitlements;
+  }, [entitlements, showDirectOnly]);
+
+  // Group by resource type
+  const groupedEntitlements = useMemo(() => {
+    const map = new Map<string, IamEntitlement[]>();
+    for (const e of displayEntitlements) {
+      const type = e.resource?.type || 'unknown';
       if (!map.has(type)) map.set(type, []);
-      map.get(type)!.push(g);
+      map.get(type)!.push(e);
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [grants]);
+  }, [displayEntitlements]);
+
+  const handleRevoke = async (grantId: string) => {
+    try {
+      await revokeAccess.mutateAsync(grantId);
+      entitlementsQuery.refetch();
+    } catch {
+      // handled by the mutation
+    }
+  };
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold">人员权限</h2>
-        <p className="text-sm text-muted-foreground">选择人员，查看其在所有资源上的权限。</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">人员权限</h2>
+          <p className="text-sm text-muted-foreground">选择人员，查看其在所有资源上的有效权限（含继承）。</p>
+        </div>
+        {selectedUser && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showDirectOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowDirectOnly(!showDirectOnly)}
+            >
+              <Shield className="mr-1 h-3.5 w-3.5" />
+              {showDirectOnly ? '显示全部' : '仅直接授权'}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.4fr)_minmax(0,1.6fr)]">
@@ -103,7 +155,7 @@ export function UserPermissions({ identityOrg }: { identityOrg: string }) {
           </CardContent>
         </Card>
 
-        {/* Right: Permissions */}
+        {/* Right: Entitlements */}
         <div className="space-y-4">
           {selectedUser ? (
             <>
@@ -117,48 +169,101 @@ export function UserPermissions({ identityOrg }: { identityOrg: string }) {
                     <p className="text-xs text-muted-foreground">
                       {selectedUser.email && <span>{selectedUser.email} · </span>}
                       @{selectedUser.username}
+                      <span className="ml-2 text-[10px] opacity-60">
+                        {entitlements.length} 个有效权限
+                        {entitlements.filter((e) => e.sourceType === 'DIRECT_GRANT').length > 0 && (
+                          <>（{entitlements.filter((e) => e.sourceType === 'DIRECT_GRANT').length} 个直接授权）</>
+                        )}
+                      </span>
                     </p>
                   </div>
                 </CardContent>
               </Card>
 
-              {groupedGrants.length === 0 ? (
+              {entitlementsQuery.isLoading && (
                 <Card>
-                  <CardContent className="p-8 text-center text-sm text-muted-foreground">
-                    该人员暂无任何权限分配。
+                  <CardContent className="p-8 text-center text-sm text-muted-foreground">加载中...</CardContent>
+                </Card>
+              )}
+
+              {entitlementsQuery.isError && (
+                <Card>
+                  <CardContent className="p-8 text-center text-sm text-red-500">
+                    加载失败：{entitlementsQuery.error?.message}
                   </CardContent>
                 </Card>
-              ) : (
-                groupedGrants.map(([type, typeGrants]) => (
-                  <Card key={type}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center gap-2 text-sm">
-                        <Route className="h-4 w-4 text-violet-600" />
-                        {resourceLabel(type)}
-                      </CardTitle>
-                      <CardDescription>{typeGrants.length} 个分配</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {typeGrants.map((grant) => (
-                          <div key={grant.id} className="flex items-center justify-between rounded-lg border p-2.5">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="font-medium">{grant.resource?.id}</span>
-                              <span className="text-muted-foreground">→</span>
-                              <Badge variant="secondary" className="text-[10px]">
-                                {roleMap.get(grant.roleKey || '') || grant.roleKey || grant.relation}
-                              </Badge>
-                            </div>
-                            <Badge variant="outline" className="text-[10px]">
-                              {grant.subject?.relation === 'member' ? '通过用户组' : '直接分配'}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
               )}
+
+              {!entitlementsQuery.isLoading && !entitlementsQuery.isError && groupedEntitlements.length === 0 && (
+                <Card>
+                  <CardContent className="p-8 text-center text-sm text-muted-foreground">
+                    该人员暂无任何有效权限。
+                  </CardContent>
+                </Card>
+              )}
+
+              {groupedEntitlements.map(([type, typeEntitlements]) => (
+                <Card key={type}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <Route className="h-4 w-4 text-violet-600" />
+                      {resourceLabel(type)}
+                    </CardTitle>
+                    <CardDescription>{typeEntitlements.length} 个有效权限</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {typeEntitlements.map((ent) => (
+                        <div key={ent.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                          <div className="flex items-center gap-2 text-sm min-w-0">
+                            <span className="font-medium truncate">{ent.resource?.id}</span>
+                            <span className="text-muted-foreground shrink-0">→</span>
+                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                              {ent.roleKey || ent.roleKey}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] shrink-0 flex items-center gap-1"
+                            >
+                              <SourceIcon source={ent.sourceType} />
+                              {sourceLabel(ent.sourceType)}
+                            </Badge>
+                            {ent.sourceSubject && ent.sourceType === 'GROUP_GRANT' && (
+                              <span className="text-[10px] text-muted-foreground truncate">
+                                (组: {ent.sourceSubject.id})
+                              </span>
+                            )}
+                            {ent.sourceResource && ent.sourceType === 'PARENT_INHERITANCE' && (
+                              <span className="text-[10px] text-muted-foreground truncate">
+                                (父: {ent.sourceResource.id})
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {ent.permissions && ent.permissions.length > 0 && (
+                              <span className="text-[10px] text-muted-foreground hidden md:inline">
+                                {ent.permissions.length} 个权限
+                              </span>
+                            )}
+                            {ent.revocableHere && ent.grantId && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-red-500 hover:text-red-700"
+                                onClick={() => handleRevoke(ent.grantId!)}
+                                title="撤销授权"
+                                disabled={revokeAccess.isPending}
+                              >
+                                <Ban className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </>
           ) : (
             <Card>
@@ -166,7 +271,7 @@ export function UserPermissions({ identityOrg }: { identityOrg: string }) {
                 <UserRound className="mb-3 h-10 w-10 text-muted-foreground/40" />
                 <h3 className="text-base font-medium">选择一个人</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  从左侧列表中选择人员，查看其所有资源上的权限。
+                  从左侧列表中选择人员，查看其所有资源上的有效权限。
                 </p>
               </CardContent>
             </Card>

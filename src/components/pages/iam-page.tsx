@@ -196,7 +196,7 @@ function GrantsTab() {
     try {
       await grantMutation.mutateAsync({
         resource: { type: grantForm.resourceType, id: grantForm.resourceId },
-        roleKey: grantForm.roleKey,
+        role_key: grantForm.roleKey,
         subject: { type: grantForm.subjectId.includes(':') ? grantForm.subjectId.split(':')[0] : grantForm.subjectType, id: grantForm.subjectId.includes(':') ? grantForm.subjectId.split(':').slice(1).join(':') : grantForm.subjectId },
         reason: grantForm.reason,
       });

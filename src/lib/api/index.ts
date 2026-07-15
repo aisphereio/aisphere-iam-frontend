@@ -19,6 +19,9 @@ import type {
   IamAuthzSchemaReply,
   IamAuthzRelationshipListReply,
   IamAuthzEffectivePermissionsReply,
+  IamListSubjectEntitlementsReply,
+  IamListResourceAccessReply,
+  IamPreviewGrantReply,
   LocalUser,
 } from './types';
 
@@ -619,11 +622,11 @@ export const iamGrantService = {
 
   grantAccess: (orgId: string, grant: {
     resource?: { type: string; id: string };
-    roleKey?: string;
+    role_key?: string;
     subject?: { type: string; id: string; relation?: string };
     source?: string;
     reason?: string;
-    expiresAt?: string;
+    expires_at?: string;
   }) =>
     iamRequest<IamGrant>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/grants`, {
       method: 'POST',
@@ -646,6 +649,45 @@ export const iamGrantService = {
       method: 'POST',
       body: JSON.stringify(params),
     }),
+};
+
+// ─── AccessQuery API ────────────────────────────────────────────────────
+
+export const iamAccessQueryApi = {
+  /** List all effective permissions for a subject */
+  listSubjectEntitlements: (orgId: string, params: {
+    subject: { type: string; id: string };
+    resourceType?: string;
+    pageSize?: number;
+    pageToken?: string;
+  }) =>
+    iamRequest<IamListSubjectEntitlementsReply>(
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/access:subject-entitlements`,
+      { method: 'POST', body: JSON.stringify(params) },
+    ),
+
+  /** List all subjects with effective access to a resource */
+  listResourceAccess: (orgId: string, params: {
+    resource: { type: string; id: string };
+    subjectType?: string;
+    pageSize?: number;
+    pageToken?: string;
+  }) =>
+    iamRequest<IamListResourceAccessReply>(
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/access:resource-access`,
+      { method: 'POST', body: JSON.stringify(params) },
+    ),
+
+  /** Preview what permissions a subject would receive */
+  previewGrant: (orgId: string, params: {
+    resource: { type: string; id: string };
+    roleKey: string;
+    subject: { type: string; id: string };
+  }) =>
+    iamRequest<IamPreviewGrantReply>(
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/access:preview-grant`,
+      { method: 'POST', body: JSON.stringify(params) },
+    ),
 };
 
 // ─── Local User API ────────────────────────────────────────────────────

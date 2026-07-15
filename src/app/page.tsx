@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
-import { AccessAssignments } from '@/components/access-control/access-assignments';
+import { GrantEditor } from '@/components/access-control/grant-editor';
 import { AdvancedGovernance } from '@/components/access-control/advanced-governance';
 import { PermissionDiagnosis } from '@/components/access-control/permission-diagnosis';
 import { PlatformGovernance } from '@/components/access-control/platform-governance';
@@ -26,7 +26,7 @@ const queryClient = new QueryClient({
 function PageRouter({ tab, identityOrg, onTabChange }: { tab: Tab; identityOrg: string; onTabChange: (tab: Tab) => void }) {
   if (tab === 'users') return <ExternalUsersPage identityOrg={identityOrg} />;
   if (tab === 'groups') return <GroupsPage identityOrg={identityOrg} />;
-  if (tab === 'permissions' || tab === 'grants') return <AccessAssignments identityOrg={identityOrg} />;
+  if (tab === 'permissions' || tab === 'grants') return <GrantEditor identityOrg={identityOrg} />;
   if (tab === 'roles') return <RoleLibrary onAssign={() => onTabChange('grants')} />;
   if (tab === 'permission-diagnosis') return <PermissionDiagnosis identityOrg={identityOrg} />;
   if (tab === 'permissions-center') return <AdvancedGovernance />;

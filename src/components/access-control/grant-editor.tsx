@@ -24,9 +24,16 @@ import {
 import type { IamGrant, IamGroup, IamResource, IamUser } from '@/lib/api/types';
 import { resourceLabel } from '@/lib/authz/schema-summary';
 
-export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
-  const [resourceType, setResourceType] = useState('');
-  const [resourceId, setResourceId] = useState('');
+interface GrantEditorProps {
+  identityOrg: string;
+  /** Optional pre-selected resource context */
+  resourceType?: string;
+  resourceId?: string;
+}
+
+export function GrantEditor({ identityOrg, resourceType: presetResourceType, resourceId: presetResourceId }: GrantEditorProps) {
+  const [resourceType, setResourceType] = useState(presetResourceType || '');
+  const [resourceId, setResourceId] = useState(presetResourceId || '');
   const [subjectType, setSubjectType] = useState<'user' | 'group'>('user');
   const [subjectId, setSubjectId] = useState('');
   const [roleKey, setRoleKey] = useState('');
@@ -53,7 +60,7 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
   const groups = groupsQuery.data?.groups || [];
   const grants = grantsQuery.data?.grants || [];
 
-  // 构建显示名称查找表
+  // Build display name lookup tables
   const userMap = useMemo(() => {
     const map = new Map<string, IamUser>();
     for (const u of users) map.set(u.id, u);
@@ -214,7 +221,7 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <div><CardTitle className="text-base">当前有效分配</CardTitle><CardDescription>角色定义不会复制；这里保存“谁在什么资源上使用哪个角色”。</CardDescription></div>
+              <div><CardTitle className="text-base">当前有效分配</CardTitle><CardDescription>角色定义不会复制；这里保存"谁在什么资源上使用哪个角色"。</CardDescription></div>
               <Badge variant="secondary">{grants.length}</Badge>
             </div>
           </CardHeader>

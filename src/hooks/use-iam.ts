@@ -195,11 +195,11 @@ export function useIamGrantAccess(orgId?: string) {
   return useMutation({
     mutationFn: (grant: {
       resource?: { type: string; id: string };
-      roleKey?: string;
+      role_key?: string;
       subject?: { type: string; id: string; relation?: string };
       source?: string;
       reason?: string;
-      expiresAt?: string;
+      expires_at?: string;
     }) => iamGrantService.grantAccess(orgId || '', grant),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'grants', orgId] }),
   });
@@ -250,5 +250,59 @@ export function useIamExplainAccess(orgId?: string) {
   return useMutation({
     mutationFn: (params: { resource: { type: string; id: string }; permission: string; subject: { type: string; id: string } }) =>
       iamGrantService.explainAccess(orgId || '', params),
+  });
+}
+
+// ─── AccessQuery Hooks ──────────────────────────────────────────────────
+
+import { iamAccessQueryApi } from '@/lib/api';
+import type {
+  IamListSubjectEntitlementsReply,
+  IamListResourceAccessReply,
+  IamPreviewGrantReply,
+} from '@/lib/api/types';
+
+/** Query all effective permissions for a subject */
+export function useIamSubjectEntitlements(
+  orgId: string,
+  subject: { type: string; id: string } | null,
+  resourceType?: string,
+) {
+  return useQuery({
+    queryKey: ['iam', 'subject-entitlements', orgId, subject, resourceType],
+    queryFn: () =>
+      iamAccessQueryApi.listSubjectEntitlements(orgId, {
+        subject: subject!,
+        resourceType,
+      }),
+    enabled: Boolean(orgId) && Boolean(subject?.type && subject?.id),
+  });
+}
+
+/** Query all subjects with effective access to a resource */
+export function useIamResourceAccess(
+  orgId: string,
+  resource: { type: string; id: string } | null,
+  subjectType?: string,
+) {
+  return useQuery({
+    queryKey: ['iam', 'resource-access', orgId, resource, subjectType],
+    queryFn: () =>
+      iamAccessQueryApi.listResourceAccess(orgId, {
+        resource: resource!,
+        subjectType,
+      }),
+    enabled: Boolean(orgId) && Boolean(resource?.type && resource?.id),
+  });
+}
+
+/** Preview grant mutation */
+export function useIamPreviewGrant(orgId?: string) {
+  return useMutation({
+    mutationFn: (params: {
+      resource: { type: string; id: string };
+      roleKey: string;
+      subject: { type: string; id: string };
+    }) => iamAccessQueryApi.previewGrant(orgId || '', params),
   });
 }

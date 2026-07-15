@@ -101,11 +101,11 @@ export function GrantWizard({ identityOrg, resourceType: presetResourceType, res
     try {
       await grantAccess.mutateAsync({
         resource: { type: selectedResourceType, id: selectedResourceId },
-        roleKey: selectedRoleKey,
+        role_key: selectedRoleKey,
         subject: { type: subjectType, id: subjectId, relation: subjectType === 'group' ? 'member' : undefined },
         source: 'iam_console',
         reason: reason.trim() || undefined,
-        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+        expires_at: expiresAt ? new Date(expiresAt).toISOString() : undefined,
       });
       toast.success('访问权限已分配');
       onComplete?.();

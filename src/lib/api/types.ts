@@ -295,3 +295,51 @@ export type LocalUser = {
 };
 
 export type Tab = 'users' | 'groups' | 'projects' | 'grants' | 'resources' | 'permissions' | 'capabilities' | 'permissions-center' | 'roles' | 'permission-diagnosis' | 'resource-permissions' | 'user-permissions' | 'platform-governance';
+
+// ─── AccessQuery Types ──────────────────────────────────────────────────
+
+/** Entitlement source type */
+export type IamEntitlementSourceType =
+  | 'DIRECT_GRANT'
+  | 'GROUP_GRANT'
+  | 'PARENT_INHERITANCE'
+  | 'ORG_INHERITANCE'
+  | 'PLATFORM_INHERITANCE';
+
+/** IAM Entitlement — unified permission entry */
+export interface IamEntitlement {
+  id: string;
+  subject: IamSubjectRef;
+  resource: IamResourceRef;
+  roleKey?: string;
+  permissions?: string[];
+  sourceType?: IamEntitlementSourceType;
+  sourceSubject?: IamSubjectRef;
+  sourceResource?: IamResourceRef;
+  grantId?: string;
+  revocableHere?: boolean;
+  expiresAt?: string;
+  consistencyToken?: string;
+}
+
+/** ListSubjectEntitlements reply */
+export interface IamListSubjectEntitlementsReply {
+  entitlements: IamEntitlement[];
+  nextPageToken?: string;
+  totalSize?: number;
+}
+
+/** ListResourceAccess reply */
+export interface IamListResourceAccessReply {
+  entitlements: IamEntitlement[];
+  nextPageToken?: string;
+  totalSize?: number;
+}
+
+/** PreviewGrant reply */
+export interface IamPreviewGrantReply {
+  permissions: string[];
+  alreadyGranted: boolean;
+  existingGrantId?: string;
+  consistencyToken?: string;
+}
