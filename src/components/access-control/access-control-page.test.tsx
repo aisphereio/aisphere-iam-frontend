@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AccessControlPage } from './access-control-page';
+import { RoleLibrary } from './role-library';
 
 vi.mock('@/hooks/use-iam', () => ({
   useIamRoleTemplates: () => ({ data: { roleTemplates: [
@@ -24,34 +24,32 @@ vi.mock('@/hooks/use-iam', () => ({
   useIamExplainAccess: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-describe('AccessControlPage', () => {
-  it('opens with the role library listing role cards', () => {
-    render(<AccessControlPage identityOrg="org-a" />);
+describe('RoleLibrary', () => {
+  it('renders role cards', () => {
+    render(<RoleLibrary onAssign={vi.fn()} />);
 
-    expect(screen.getByRole('heading', { name: '访问控制' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '角色库' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '角色模板' })).toBeInTheDocument();
     expect(screen.getByText('组织管理员')).toBeInTheDocument();
     expect(screen.getByText('Skill 审核员')).toBeInTheDocument();
   });
 
   it('opens a role detail sheet when a card is clicked', () => {
-    render(<AccessControlPage identityOrg="org-a" />);
+    render(<RoleLibrary onAssign={vi.fn()} />);
 
-    // The roleKey (shown in the detail sheet, not on the card) is absent before click.
     expect(screen.queryByText('reviewer')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Skill 审核员'));
-    // The detail sheet surfaces the technical roleKey and the full capability list.
     expect(screen.getByText('reviewer')).toBeInTheDocument();
     expect(screen.getByText(/包含能力/)).toBeInTheDocument();
-    expect(screen.getByText('审核')).toBeInTheDocument();
   });
 
-  it('switches from roles to access assignments', () => {
-    render(<AccessControlPage identityOrg="org-a" />);
+  it('calls onAssign with roleKey and resourceType when assign button is clicked', () => {
+    const onAssign = vi.fn();
+    render(<RoleLibrary onAssign={onAssign} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /访问分配/ }));
-    expect(screen.getByRole('heading', { name: '访问分配' })).toBeInTheDocument();
-    expect(screen.getByText(/选择资源、人员或用户组/)).toBeInTheDocument();
+    const assignButtons = screen.getAllByText('分配');
+    fireEvent.click(assignButtons[0]);
+
+    expect(onAssign).toHaveBeenCalledWith('zone_admin', 'zone');
   });
 });

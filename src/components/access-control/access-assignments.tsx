@@ -53,6 +53,52 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
   const groups = groupsQuery.data?.groups || [];
   const grants = grantsQuery.data?.grants || [];
 
+  // 构建显示名称查找表
+  const userMap = useMemo(() => {
+    const map = new Map<string, IamUser>();
+    for (const u of users) map.set(u.id, u);
+    return map;
+  }, [users]);
+  const groupMap = useMemo(() => {
+    const map = new Map<string, IamGroup>();
+    for (const g of groups) map.set(g.id, g);
+    return map;
+  }, [groups]);
+  const roleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rolesQuery.data?.roleTemplates || []) {
+      map.set(r.roleKey, r.displayName || r.roleKey);
+    }
+    return map;
+  }, [rolesQuery.data?.roleTemplates]);
+  const resourceDisplayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of resourcesQuery.data?.resources || []) {
+      map.set(r.ref.id, r.displayName || r.slug || r.ref.id);
+    }
+    return map;
+  }, [resourcesQuery.data?.resources]);
+
+  const grantSubjectName = (grant: IamGrant): string => {
+    if (!grant.subject) return '未知对象';
+    if (grant.subject.type === 'user') {
+      const user = userMap.get(grant.subject.id);
+      return user ? (user.displayName || user.username || grant.subject.id) : grant.subject.id;
+    }
+    const group = groupMap.get(grant.subject.id);
+    return group ? (group.displayName || group.name || grant.subject.id) : grant.subject.id;
+  };
+
+  const grantRoleName = (grant: IamGrant): string => {
+    return roleMap.get(grant.roleKey || '') || grant.roleKey || grant.relation || '未知角色';
+  };
+
+  const grantResourceName = (grant: IamGrant): string => {
+    if (!grant.resource) return '未知资源';
+    const name = resourceDisplayMap.get(grant.resource.id);
+    return name ? `${resourceLabel(grant.resource.type)} · ${name}` : `${resourceLabel(grant.resource.type)}:${grant.resource.id}`;
+  };
+
   const changeResourceType = (value: string) => {
     setResourceType(value);
     setResourceId('');
@@ -182,12 +228,12 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                         {grant.subject?.type === 'group' ? <UsersRound className="h-4 w-4 text-cyan-600" /> : <UserRound className="h-4 w-4 text-violet-600" />}
-                        <span>{grant.subject?.id || '未知对象'}</span>
+                        <span>{grantSubjectName(grant)}</span>
                         <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{grant.roleKey || grant.relation}</span>
+                        <span>{grantRoleName(grant)}</span>
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>{resourceLabel(grant.resource?.type || '')}:{grant.resource?.id}</span>
+                        <span>{grantResourceName(grant)}</span>
                         <span>{grant.subject?.relation === 'member' ? '用户组成员继承' : '直接分配'}</span>
                         {grant.expiresAt && <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{new Date(grant.expiresAt).toLocaleString()}</span>}
                       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Phone, Fingerprint, Shield, ExternalLink, MapPin, Users } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -21,7 +21,7 @@ import { LoginPage } from './login-page';
 import { buildGatewayLoginUrl } from '@/lib/api/client';
 
 interface AppShellProps {
-  children: (tab: Tab, identityOrg: string) => React.ReactNode;
+  children: (tab: Tab, identityOrg: string, setTab: (tab: Tab) => void) => React.ReactNode;
 }
 
 const IDENTITY_ORG_KEY = 'aisphere_iam_identity_org';
@@ -44,8 +44,32 @@ function saveIdentityOrg(org: string) {
   }
 }
 
+const validTabs: Tab[] = ['users', 'groups', 'projects', 'grants', 'roles', 'resources', 'permission-diagnosis', 'permissions-center', 'capabilities', 'resource-permissions', 'user-permissions', 'platform-governance'];
+
+function getInitialTab(): Tab {
+  if (typeof window === 'undefined') return 'resource-permissions';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('tab') as Tab;
+    if (t && validTabs.includes(t)) return t;
+  } catch {
+    // ignore
+  }
+  return 'resource-permissions';
+}
+
 export function AppShell({ children }: AppShellProps) {
-  const [tab, setTab] = useState<Tab>('users');
+  const [tab, setTabState] = useState<Tab>(getInitialTab);
+  const setTab = useCallback((newTab: Tab) => {
+    setTabState(newTab);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', newTab);
+      window.history.replaceState({}, '', url.toString());
+    } catch {
+      // ignore
+    }
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [identityOrg, setIdentityOrg] = useState(loadIdentityOrg);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -111,7 +135,7 @@ export function AppShell({ children }: AppShellProps) {
                 transition={{ duration: 0.15 }}
                 className="h-full"
               >
-                {children(tab, identityOrg)}
+                {children(tab, identityOrg, setTab)}
               </motion.div>
             </AnimatePresence>
           </main>

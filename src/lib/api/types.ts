@@ -294,4 +294,4 @@ export type LocalUser = {
   disabled?: boolean;
 };
 
-export type Tab = 'users' | 'groups' | 'projects' | 'grants' | 'resources' | 'permissions' | 'capabilities' | 'permissions-center';
+export type Tab = 'users' | 'groups' | 'projects' | 'grants' | 'resources' | 'permissions' | 'capabilities' | 'permissions-center' | 'roles' | 'permission-diagnosis' | 'resource-permissions' | 'user-permissions' | 'platform-governance';

@@ -20,13 +20,17 @@ const tabLabels: Record<string, string> = {
   users: '身份目录',
   groups: '多级用户组',
   projects: 'nav.projects',
-  grants: '访问控制',
+  grants: '访问分配',
+  roles: '角色模板',
   resources: 'nav.resources',
-  permissions: '访问控制',
-  'permissions-center': '访问控制',
+  'permission-diagnosis': '权限排查',
+  'permissions-center': '授权模型',
+  'resource-permissions': '资源权限',
+  'user-permissions': '人员权限',
+  'platform-governance': '平台治理',
 };
 
-const identityTabs = new Set(['users', 'groups', 'permissions']);
+const identityTabs = new Set(['users', 'groups', 'grants', 'permission-diagnosis', 'resource-permissions', 'user-permissions']);
 
 const identityOrgs = [
   { value: 'aisphere', label: 'aisphere' },

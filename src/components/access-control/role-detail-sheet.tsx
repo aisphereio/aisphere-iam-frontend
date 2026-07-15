@@ -77,7 +77,7 @@ function RoleDetailBody({ role, onAssign, onEdit, onCopy, onDisable }: {
           <OverviewItem label="有效分配" value={`${role.activeGrantCount || 0} 个`} />
           <div className="col-span-2">
             <div className="text-xs text-muted-foreground">作用域</div>
-            <p className="mt-1 text-sm leading-5">{roleScopeDescription(role.roleKey)}</p>
+            <p className="mt-1 text-sm leading-5">{roleScopeDescription(role.roleKey, role.resourceType)}</p>
           </div>
           {role.description && (
             <div className="col-span-2">
@@ -104,6 +104,33 @@ function RoleDetailBody({ role, onAssign, onEdit, onCopy, onDisable }: {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <Separator />
+
+        <section>
+          <h3 className="text-sm font-semibold">权限影响范围</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">该角色在对应资源类型上的继承效果。</p>
+          <div className="mt-3 space-y-3 text-sm">
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
+              <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">直接作用</div>
+              <p className="mt-0.5 text-muted-foreground">
+                直接分配该角色的资源上生效。
+              </p>
+            </div>
+            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5">
+              <div className="text-xs font-medium text-blue-600 dark:text-blue-400">默认继承</div>
+              <p className="mt-0.5 text-muted-foreground">
+                该角色权限会继承到下级资源（如项目下的 Skill、Git 仓库等）。
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
+              <div className="text-xs font-medium text-amber-600 dark:text-amber-400">不包含</div>
+              <p className="mt-0.5 text-muted-foreground">
+                不包含管理成员、修改权限、删除资源等管理类操作（除非角色明确包含）。
+              </p>
+            </div>
           </div>
         </section>
       </div>

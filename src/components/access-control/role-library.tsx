@@ -17,7 +17,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { RoleDetailSheet } from './role-detail-sheet';
 import { RoleEditorDialog } from './role-editor-dialog';
 
-export function RoleLibrary({ onAssign }: { onAssign: () => void }) {
+export function RoleLibrary({ onAssign }: { onAssign: (roleKey?: string, resourceType?: string) => void }) {
   const rolesQuery = useIamRoleTemplates();
   const resourceTypesQuery = useIamResourceTypes();
   const disableRole = useIamDisableRoleTemplate();
@@ -98,16 +98,17 @@ export function RoleLibrary({ onAssign }: { onAssign: () => void }) {
   };
 
   const assignFromDetail = () => {
+    const role = detailRole;
     setDetailRole(null);
-    onAssign();
+    onAssign(role?.roleKey, role?.resourceType);
   };
 
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">角色库</h2>
-          <p className="text-sm text-muted-foreground">角色回答“能做什么”，分配时再决定“在哪个范围、给谁”。</p>
+          <h2 className="text-xl font-semibold">角色模板</h2>
+          <p className="text-sm text-muted-foreground">角色模板定义某一类资源上的能力组合。角色只有分配到具体资源后才会生效。每个角色只适用于一种资源类型。</p>
         </div>
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" />创建自定义角色</Button>
       </div>
@@ -191,14 +192,14 @@ export function RoleLibrary({ onAssign }: { onAssign: () => void }) {
   );
 }
 
-function RoleCard({ role, onAssign, onDetail }: { role: IamRoleTemplate; onAssign: () => void; onDetail: () => void }) {
+function RoleCard({ role, onAssign, onDetail }: { role: IamRoleTemplate; onAssign: (roleKey?: string, resourceType?: string) => void; onDetail: () => void }) {
   return (
     <Card className="gap-0 py-0 transition-colors hover:border-violet-500/35">
       <button type="button" onClick={onDetail} className="flex w-full flex-1 items-start gap-3 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">{role.builtIn ? <Shield className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}</span>
         <div className="min-w-0 flex-1">
           <CardTitle className="truncate text-base">{role.displayName || role.roleKey}</CardTitle>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{roleScopeDescription(role.roleKey)}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{roleScopeDescription(role.roleKey, role.resourceType)}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant={role.builtIn ? 'secondary' : 'outline'}>{role.builtIn ? '内置' : '自定义'}</Badge>
             {role.enabled === false && <Badge variant="destructive">已停用</Badge>}
@@ -208,7 +209,7 @@ function RoleCard({ role, onAssign, onDetail }: { role: IamRoleTemplate; onAssig
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
       </button>
       <CardContent className="border-t px-4 py-2.5">
-        <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={onAssign} disabled={role.enabled === false}><UserPlus className="mr-1.5 h-3.5 w-3.5" />分配</Button>
+        <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => onAssign(role.roleKey, role.resourceType)} disabled={role.enabled === false}><UserPlus className="mr-1.5 h-3.5 w-3.5" />分配</Button>
       </CardContent>
     </Card>
   );

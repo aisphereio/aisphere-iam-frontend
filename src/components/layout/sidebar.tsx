@@ -3,14 +3,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
+  Braces,
   ChevronDown,
   Database,
   Folder,
   GitBranch,
-  Key,
+  KeyRound,
   Layers3,
   LogOut,
   Moon,
+  Route,
+  SearchCheck,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -29,32 +32,47 @@ import type { Tab } from '@/lib/api/types';
 type NavItem = { key: Tab; label: string; hint: string; icon: React.ReactNode };
 type NavSection = { title: string; icon: React.ReactNode; items: NavItem[] };
 
-const navSections: NavSection[] = [
-  {
-    title: '身份目录',
-    icon: <Users className="h-3.5 w-3.5" />,
-    items: [
-      { key: 'users', label: '本地用户', hint: '查看 Casdoor / Gateway 注入后的用户身份', icon: <Users className="h-4 w-4" /> },
-      { key: 'groups', label: '组织管理', hint: '组织根节点 + 多级用户组树', icon: <GitBranch className="h-4 w-4" /> },
-    ],
-  },
-  {
-    title: '资源域',
-    icon: <Layers3 className="h-3.5 w-3.5" />,
-    items: [
-      { key: 'projects', label: '项目', hint: '管理组织下的项目', icon: <Folder className="h-4 w-4" /> },
-      { key: 'resources', label: '资源', hint: '维护资源类型、资源和绑定', icon: <Database className="h-4 w-4" /> },
-      { key: 'capabilities', label: '能力管理', hint: '管理平台能力和项目能力开关', icon: <Layers3 className="h-4 w-4" /> },
-    ],
-  },
-  {
-    title: '权限治理',
-    icon: <ShieldCheck className="h-3.5 w-3.5" />,
-    items: [
-      { key: 'permissions', label: '访问控制', hint: '角色、分配、排查与高级治理', icon: <Key className="h-4 w-4" /> },
-    ],
-  },
-];
+function getNavSections(principal: Record<string, unknown> | null): NavSection[] {
+  const roles = (principal?.roles as string[]) || [];
+  const isPlatformAdmin = roles.some((r) => ['admin', 'platform_owner', 'platform_admin', 'schema_admin'].includes(r));
+  const sections: NavSection[] = [
+    {
+      title: '身份与组织',
+      icon: <Users className="h-3.5 w-3.5" />,
+      items: [
+        { key: 'users', label: '本地用户', hint: '查看 Casdoor / Gateway 注入后的用户身份', icon: <Users className="h-4 w-4" /> },
+        { key: 'groups', label: '组织管理', hint: '组织根节点 + 多级用户组树', icon: <GitBranch className="h-4 w-4" /> },
+      ],
+    },
+    {
+      title: '资源与访问',
+      icon: <ShieldCheck className="h-3.5 w-3.5" />,
+      items: [
+        { key: 'resource-permissions', label: '资源权限', hint: '管理资源成员、角色和继承权限', icon: <Route className="h-4 w-4" /> },
+        { key: 'user-permissions', label: '人员权限', hint: '查看某个人的全部权限', icon: <Users className="h-4 w-4" /> },
+        { key: 'roles', label: '角色模板', hint: '这个角色能够做什么', icon: <KeyRound className="h-4 w-4" /> },
+        { key: 'permission-diagnosis', label: '权限排查', hint: '为什么允许或拒绝这次访问', icon: <SearchCheck className="h-4 w-4" /> },
+      ],
+    },
+    {
+      title: '资源域',
+      icon: <Layers3 className="h-3.5 w-3.5" />,
+      items: [
+        { key: 'projects', label: '项目', hint: '管理组织下的项目', icon: <Folder className="h-4 w-4" /> },
+        { key: 'resources', label: '资源', hint: '维护资源类型、资源和绑定', icon: <Database className="h-4 w-4" /> },
+        { key: 'capabilities', label: '能力管理', hint: '管理平台能力和项目能力开关', icon: <Layers3 className="h-4 w-4" /> },
+      ],
+    },
+    ...(isPlatformAdmin ? [{
+      title: '平台治理',
+      icon: <Braces className="h-3.5 w-3.5" />,
+      items: [
+        { key: 'platform-governance' as Tab, label: '授权模型', hint: 'Schema、关系、投影与漂移检测', icon: <Braces className="h-4 w-4" /> },
+      ],
+    }] : []),
+  ];
+  return sections;
+}
 
 interface SidebarProps {
   activeTab: Tab;
@@ -77,8 +95,8 @@ function getRoleLabel(principal: Record<string, unknown> | null, t?: (key: strin
   return t ? t('common.member') : 'member';
 }
 
-function getDefaultOpenSections(): Record<string, boolean> {
-  return Object.fromEntries(navSections.map((section) => [section.title, true]));
+function getDefaultOpenSections(principal: Record<string, unknown> | null): Record<string, boolean> {
+  return Object.fromEntries(getNavSections(principal).map((section) => [section.title, true]));
 }
 
 export function Sidebar({
@@ -93,7 +111,8 @@ export function Sidebar({
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   const t = useT();
-const [openSections, setOpenSections] = React.useState<Record<string, boolean>>(getDefaultOpenSections);
+const [openSections, setOpenSections] = React.useState<Record<string, boolean>>(() => getDefaultOpenSections(principal));
+  const navSections = React.useMemo(() => getNavSections(principal), [principal]);
 	  const isDark = mounted && theme === 'dark';
   const username = (principal?.subjectId || principal?.username || 'user') as string;
   const displayName = (principal?.displayName || principal?.name || username) as string;
