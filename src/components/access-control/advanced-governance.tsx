@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { FormField } from './form-field';
 import {
   useIamAuthzRelationships,
   useIamAuthzSchema,
@@ -25,6 +26,7 @@ export function AdvancedGovernance() {
   const [resourceType, setResourceType] = useState('');
   const [resourceId, setResourceId] = useState('');
   const [relation, setRelation] = useState('');
+  const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
   const relationshipsQuery = useIamAuthzRelationships({
     resourceType: resourceType || undefined,
     resourceId: resourceId || undefined,
@@ -45,14 +47,17 @@ export function AdvancedGovernance() {
     }
   };
 
-  const publish = async () => {
-    if (!window.confirm('发布 Schema 会影响整个授权图。确认已经评审并处于迁移窗口吗？')) return;
+  const publish = () => setConfirmPublishOpen(true);
+
+  const confirmPublish = async () => {
     try {
       await validateSchema.mutateAsync(schemaDraft);
       await publishSchema.mutateAsync(schemaDraft);
       toast.success('Schema 已发布');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Schema 发布失败');
+    } finally {
+      setConfirmPublishOpen(false);
     }
   };
 
@@ -108,10 +113,24 @@ export function AdvancedGovernance() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={confirmPublishOpen}
+        onOpenChange={setConfirmPublishOpen}
+        title="发布 SpiceDB Schema"
+        description="发布 Schema 会影响整个授权图。确认已经评审并处于迁移窗口吗？"
+        confirmLabel="确认发布"
+        variant="destructive"
+        onConfirm={confirmPublish}
+      />
     </section>
   );
 }
 
 function Filter({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return <div className="space-y-2"><Label>{label}</Label><Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /></div>;
+  return (
+    <FormField label={label}>
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+    </FormField>
+  );
 }

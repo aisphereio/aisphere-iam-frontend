@@ -25,14 +25,26 @@ vi.mock('@/hooks/use-iam', () => ({
 }));
 
 describe('AccessControlPage', () => {
-  it('opens with the role library and explains direct versus inherited scope', () => {
+  it('opens with the role library listing role cards', () => {
     render(<AccessControlPage identityOrg="org-a" />);
 
     expect(screen.getByRole('heading', { name: '访问控制' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '角色库' })).toBeInTheDocument();
     expect(screen.getByText('组织管理员')).toBeInTheDocument();
     expect(screen.getByText('Skill 审核员')).toBeInTheDocument();
-    expect(screen.getByText(/不会复制成每个用户组的直属管理员/)).toBeInTheDocument();
+  });
+
+  it('opens a role detail sheet when a card is clicked', () => {
+    render(<AccessControlPage identityOrg="org-a" />);
+
+    // The roleKey (shown in the detail sheet, not on the card) is absent before click.
+    expect(screen.queryByText('reviewer')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Skill 审核员'));
+    // The detail sheet surfaces the technical roleKey and the full capability list.
+    expect(screen.getByText('reviewer')).toBeInTheDocument();
+    expect(screen.getByText(/包含能力/)).toBeInTheDocument();
+    expect(screen.getByText('审核')).toBeInTheDocument();
   });
 
   it('switches from roles to access assignments', () => {

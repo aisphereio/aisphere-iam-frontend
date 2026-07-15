@@ -8,7 +8,7 @@ export interface RoleCapabilityOption {
   description: string;
 }
 
-const CAPABILITY_ORDER = [
+export const CAPABILITY_ORDER = [
   'view_zone',
   'view_users',
   'view_groups',
@@ -67,6 +67,10 @@ export function roleScopeDescription(roleKey: string): string {
   }
   if (roleKey.includes('group')) return '用户组直属角色，只管理当前组及其下级组，不会成为组织管理员。';
   return '资源直属角色，只在被分配的具体资源上生效。';
+}
+
+export function permissionCategoryOf(key: string): RoleCapabilityOption['category'] {
+  return capabilityCategory(key);
 }
 
 function capabilityCategory(key: string): RoleCapabilityOption['category'] {

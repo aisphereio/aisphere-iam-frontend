@@ -6,6 +6,7 @@ import { AccessAssignments } from './access-assignments';
 import { AdvancedGovernance } from './advanced-governance';
 import { PermissionDiagnosis } from './permission-diagnosis';
 import { RoleLibrary } from './role-library';
+import { ScopeRail } from './scope-rail';
 import { cn } from '@/lib/utils';
 
 export type AccessControlView = 'roles' | 'assignments' | 'diagnosis' | 'advanced';
@@ -24,22 +25,24 @@ export function AccessControlPage({
   identityOrg: string;
   initialView?: AccessControlView;
 }) {
+  // `initialView` seeds the internal view state from the outer Tab router
+  // (e.g. `grants`→assignments, `permissions-center`→advanced). Once mounted,
+  // the four-way nav owns the view; the sidebar only exposes `permissions` as a
+  // nav entry, so `grants`/`permissions-center` act as deep-link seeds, not
+  // synced state. If Tab↔view sync is needed later, lift `view` to AppShell.
   const [view, setView] = useState<AccessControlView>(initialView);
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.08),transparent_30%)] px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1500px] flex-col gap-5">
-        <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-              <ShieldCheck className="h-4 w-4" /> IAM access graph
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">访问控制</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              先理解角色和生效范围，再把访问权分配给人员或用户组。普通操作无需接触 SpiceDB tuple。
-            </p>
+        <header>
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+            <ShieldCheck className="h-4 w-4" /> IAM access graph
           </div>
-          <ScopeRail />
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">访问控制</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            先理解角色和生效范围，再把访问权分配给人员或用户组。普通操作无需接触 SpiceDB tuple。
+          </p>
         </header>
 
         <nav aria-label="访问控制能力" className="grid gap-2 rounded-xl border bg-card/80 p-2 shadow-sm backdrop-blur md:grid-cols-4">
@@ -70,31 +73,9 @@ export function AccessControlPage({
 
         {view === 'roles' && <RoleLibrary onAssign={() => setView('assignments')} />}
         {view === 'assignments' && <AccessAssignments identityOrg={identityOrg} />}
-        {view === 'diagnosis' && <PermissionDiagnosis identityOrg={identityOrg} />}
+        {view === 'diagnosis' && <PermissionDiagnosis identityOrg={identityOrg} scopeRail={<ScopeRail />} />}
         {view === 'advanced' && <AdvancedGovernance />}
       </div>
-    </div>
-  );
-}
-
-function ScopeRail() {
-  const scopes = [
-    { label: '平台', note: '显式平台管理员' },
-    { label: '组织', note: '继承管理用户组' },
-    { label: '用户组', note: '直属组管理员' },
-    { label: '资源', note: 'Skill 等实例' },
-  ];
-  return (
-    <div className="hidden min-w-[520px] items-center rounded-xl border bg-card/75 px-4 py-3 shadow-sm backdrop-blur xl:flex">
-      {scopes.map((scope, index) => (
-        <div key={scope.label} className="contents">
-          <div className="min-w-24">
-            <div className="font-mono text-xs font-semibold text-foreground">{scope.label}</div>
-            <div className="mt-0.5 text-[10px] text-muted-foreground">{scope.note}</div>
-          </div>
-          {index < scopes.length - 1 && <div className="mx-2 h-px flex-1 bg-gradient-to-r from-violet-500/70 to-cyan-500/40" aria-hidden />}
-        </div>
-      ))}
     </div>
   );
 }

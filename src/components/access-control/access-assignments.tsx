@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { FormField } from './form-field';
 import {
   useIamDirectoryGroups,
   useIamExternalUsers,
@@ -31,6 +32,7 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
   const [roleKey, setRoleKey] = useState('');
   const [reason, setReason] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
+  const [revokeTarget, setRevokeTarget] = useState<IamGrant | null>(null);
 
   const resourceTypesQuery = useIamResourceTypes();
   const rolesQuery = useIamRoleTemplates();
@@ -79,13 +81,18 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
     }
   };
 
-  const revoke = async (grant: IamGrant) => {
-    if (!window.confirm('撤销这条访问分配？权限将立即失效。')) return;
+  const revoke = (grant: IamGrant) => setRevokeTarget(grant);
+
+  const confirmRevoke = async () => {
+    const grant = revokeTarget;
+    if (!grant) return;
     try {
       await revokeAccess.mutateAsync(grant.id);
       toast.success('访问分配已撤销');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '撤销失败');
+    } finally {
+      setRevokeTarget(null);
     }
   };
 
@@ -104,50 +111,50 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="资源类型">
+              <FormField label="资源类型">
                 <Select value={resourceType} onValueChange={changeResourceType}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="选择资源类型" /></SelectTrigger>
                   <SelectContent>
                     {resourceTypes.filter((item) => item.grantable !== false).map((item) => <SelectItem key={item.type} value={item.type}>{item.displayName || resourceLabel(item.type)}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </Field>
-              <Field label="具体资源">
+              </FormField>
+              <FormField label="具体资源">
                 {resources.length > 0 ? (
                   <Select value={resourceId} onValueChange={setResourceId}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="选择资源" /></SelectTrigger>
                     <SelectContent>{resources.map((item) => <SelectItem key={item.ref.id} value={item.ref.id}>{resourceName(item)}</SelectItem>)}</SelectContent>
                   </Select>
                 ) : <Input value={resourceId} onChange={(event) => setResourceId(event.target.value)} placeholder="输入资源 ID" />}
-              </Field>
+              </FormField>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="授权对象类型">
+              <FormField label="授权对象类型">
                 <Select value={subjectType} onValueChange={(value: 'user' | 'group') => { setSubjectType(value); setSubjectId(''); }}>
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="user">人员</SelectItem><SelectItem value="group">用户组</SelectItem></SelectContent>
                 </Select>
-              </Field>
-              <Field label={subjectType === 'user' ? '人员' : '用户组'}>
+              </FormField>
+              <FormField label={subjectType === 'user' ? '人员' : '用户组'}>
                 <Select value={subjectId} onValueChange={setSubjectId}>
                   <SelectTrigger className="w-full"><SelectValue placeholder={`选择${subjectType === 'user' ? '人员' : '用户组'}`} /></SelectTrigger>
                   <SelectContent>
                     {(subjectType === 'user' ? users : groups).map((item) => <SelectItem key={item.id} value={item.id}>{subjectName(item)}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </Field>
+              </FormField>
             </div>
 
-            <Field label="角色">
+            <FormField label="角色">
               <Select value={roleKey} onValueChange={setRoleKey}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="选择角色" /></SelectTrigger>
                 <SelectContent>{roles.map((role) => <SelectItem key={role.id} value={role.roleKey}>{role.displayName || role.roleKey}</SelectItem>)}</SelectContent>
               </Select>
-            </Field>
+            </FormField>
 
-            <Field label="到期时间（可选）"><Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></Field>
-            <Field label="分配原因（可选）"><Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="例如：负责本季度 Skill 内容审核" /></Field>
+            <FormField label="到期时间（可选）"><Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></FormField>
+            <FormField label="分配原因（可选）"><Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="例如：负责本季度 Skill 内容审核" /></FormField>
 
             <div className="rounded-lg border bg-muted/45 p-3 text-xs leading-5 text-muted-foreground">
               {subjectType === 'group'
@@ -193,12 +200,18 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(revokeTarget)}
+        onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}
+        title="撤销访问分配"
+        description="撤销这条访问分配？权限将立即失效。"
+        confirmLabel="撤销"
+        variant="destructive"
+        onConfirm={confirmRevoke}
+      />
     </section>
   );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
 }
 
 function resourceName(resource: IamResource): string {

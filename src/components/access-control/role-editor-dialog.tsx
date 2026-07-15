@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import {
   useIamPreviewRoleTemplateImpact,
   useIamRegisterRoleTemplate,
@@ -44,6 +45,7 @@ export function RoleEditorDialog({ open, onOpenChange, role, copyFrom, resourceT
   const [resourceType, setResourceType] = useState('');
   const [permissions, setPermissions] = useState<string[]>([]);
   const [impact, setImpact] = useState<IamRoleImpact | null>(null);
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
 
   const source = role || copyFrom;
   const editing = Boolean(role);
@@ -65,6 +67,26 @@ export function RoleEditorDialog({ open, onOpenChange, role, copyFrom, resourceT
   const togglePermission = (key: string, checked: boolean) => {
     setPermissions((current) => checked ? [...new Set([...current, key])] : current.filter((item) => item !== key));
     setImpact(null);
+  };
+
+  const applyUpdate = async () => {
+    if (!role) return;
+    try {
+      await updateRole.mutateAsync({
+        id: role.id,
+        displayName: displayName.trim(),
+        description: description.trim(),
+        permissions,
+        expectedVersion: role.version || 1,
+      });
+      toast.success('角色已更新');
+      onOpenChange(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '保存角色失败';
+      toast.error(/version|conflict|冲突/i.test(message) ? '角色已被其他人更新，请刷新后重试' : message);
+    } finally {
+      setConfirmSaveOpen(false);
+    }
   };
 
   const save = async () => {
@@ -94,19 +116,11 @@ export function RoleEditorDialog({ open, onOpenChange, role, copyFrom, resourceT
 
       const nextImpact = await previewImpact.mutateAsync({ id: role.id, permissions });
       setImpact(nextImpact);
-      if (nextImpact.removedPermissions.length > 0 && !window.confirm(
-        `将移除 ${nextImpact.removedPermissions.length} 个能力，影响 ${nextImpact.activeGrantCount} 个有效分配。确认保存吗？`,
-      )) return;
-
-      await updateRole.mutateAsync({
-        id: role.id,
-        displayName: displayName.trim(),
-        description: description.trim(),
-        permissions,
-        expectedVersion: role.version || 1,
-      });
-      toast.success('角色已更新');
-      onOpenChange(false);
+      if (nextImpact.removedPermissions.length > 0) {
+        setConfirmSaveOpen(true);
+        return;
+      }
+      await applyUpdate();
     } catch (error) {
       const message = error instanceof Error ? error.message : '保存角色失败';
       toast.error(/version|conflict|冲突/i.test(message) ? '角色已被其他人更新，请刷新后重试' : message);
@@ -183,6 +197,18 @@ export function RoleEditorDialog({ open, onOpenChange, role, copyFrom, resourceT
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <ConfirmDialog
+        open={confirmSaveOpen}
+        onOpenChange={setConfirmSaveOpen}
+        title="确认移除能力"
+        description={impact
+          ? `将移除 ${impact.removedPermissions.length} 个能力，影响 ${impact.activeGrantCount} 个有效分配。确认保存吗？`
+          : '确认保存吗？'}
+        confirmLabel="确认保存"
+        variant="destructive"
+        onConfirm={applyUpdate}
+      />
     </Dialog>
   );
 }
