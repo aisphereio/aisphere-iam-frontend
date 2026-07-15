@@ -395,7 +395,7 @@ export const iamDirectoryApi = {
 
   removeUserFromGroup: (orgId: string, groupId: string, userId: string) =>
     iamRequest<Record<string, never>>(
-      `/v1/iam/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
+      `/v1/iam/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}?org_id=${encodeURIComponent(orgId)}`,
       { method: 'DELETE' },
     ),
 };
