@@ -494,7 +494,7 @@ function ProjectsTab() {
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PUBLIC">Public</SelectItem>
-                  <SelectItem value="INTERNAL">Internal</SelectItem>
+                  <SelectItem value="ORG">Org</SelectItem>
                   <SelectItem value="PRIVATE">Private</SelectItem>
                 </SelectContent>
               </Select>

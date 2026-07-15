@@ -507,6 +507,8 @@ export const iamAuthzAdminApi = {
 const PROJECT_STATUS_MAP: Record<number, string> = { 1: 'ACTIVE', 2: 'ARCHIVED', 3: 'DELETED', 4: 'DISABLED' };
 // ProjectVisibility enum (proto3): PRIVATE=1, ORG=2, PUBLIC=3.
 const PROJECT_VISIBILITY_MAP: Record<number, string> = { 1: 'PRIVATE', 2: 'ORG', 3: 'PUBLIC' };
+// Reverse map for sending visibility back to the backend as a number.
+const VISIBILITY_TO_PROTO: Record<string, number> = { PRIVATE: 1, ORG: 2, PUBLIC: 3, INTERNAL: 2 };
 
 function normalizeIamProject(input: unknown): IamProject {
   const record = asRecord(input);
@@ -585,7 +587,9 @@ export const iamProjectApi = {
       body: JSON.stringify({
         display_name: project.displayName,
         description: project.description,
-        visibility: project.visibility,
+        visibility: project.visibility
+          ? VISIBILITY_TO_PROTO[project.visibility.toUpperCase()] ?? undefined
+          : undefined,
       }),
     }).then(normalizeIamProject),
 
