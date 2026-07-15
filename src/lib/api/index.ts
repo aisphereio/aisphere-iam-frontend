@@ -4,7 +4,6 @@ import type {
   IamUser,
   IamOrganization,
   IamGroup,
-  IamCpOrganization,
   IamProject,
   IamCapability,
   IamProjectCapability,
@@ -372,13 +371,13 @@ export const iamDirectoryApi = {
   createGroup: (orgId: string, group: IamGroupWrite & { name: string }) =>
     iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`, {
       method: 'POST',
-      body: JSON.stringify(group),
+      body: JSON.stringify({ group }),
     }).then(normalizeIamGroup),
 
   updateGroup: (orgId: string, groupId: string, group: IamGroupWrite) =>
     iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}`, {
       method: 'PATCH',
-      body: JSON.stringify(group),
+      body: JSON.stringify({ group }),
     }).then(normalizeIamGroup),
 
   deleteGroup: (orgId: string, groupId: string, recursive = false) =>
@@ -409,13 +408,13 @@ export const iamPermissionApi = {
     }),
 
   writeRelationship: (relationship: IamRelationship) =>
-    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships', {
+    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships:write', {
       method: 'POST',
       body: JSON.stringify(relationship),
     }),
 
   deleteRelationship: (relationship: IamRelationship) =>
-    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships/delete', {
+    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships:delete', {
       method: 'POST',
       body: JSON.stringify(relationship),
     }),
@@ -509,29 +508,6 @@ export const iamAuthzAdminApi = {
 
 /** IAM Project Service (Control Plane) */
 export const iamProjectApi = {
-  createOrganization: (org: { slug: string; displayName?: string; casdoorOrg?: string }) =>
-    iamRequest<IamCpOrganization>('/v1/iam/control-plane/orgs', {
-      method: 'POST',
-      body: JSON.stringify(org),
-    }),
-
-  getOrganization: (orgId: string) =>
-    iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`),
-
-  listOrganizations: () =>
-    iamRequest<{ organizations: IamCpOrganization[] }>('/v1/iam/control-plane/orgs'),
-
-  updateOrganization: (orgId: string, org: Partial<IamCpOrganization>) =>
-    iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(org),
-    }),
-
-  archiveOrganization: (orgId: string) =>
-    iamRequest<{ success: boolean }>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}/archive`, {
-      method: 'POST',
-    }),
-
   createProject: (orgId: string, project: { slug: string; displayName?: string; description?: string }) =>
     iamRequest<IamProject>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects`, {
       method: 'POST',
