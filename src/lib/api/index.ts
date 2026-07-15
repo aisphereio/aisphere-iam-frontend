@@ -533,25 +533,25 @@ export const iamProjectApi = {
     }),
 
   createProject: (orgId: string, project: { slug: string; displayName?: string; description?: string }) =>
-    iamRequest<IamProject>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}/projects`, {
+    iamRequest<IamProject>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects`, {
       method: 'POST',
       body: JSON.stringify(project),
     }),
 
-  getProject: (projectId: string) =>
-    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`),
+  getProject: (orgId: string, projectId: string) =>
+    iamRequest<IamProject>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}`),
 
-  listProjects: () =>
-    iamRequest<{ projects: IamProject[] }>('/v1/iam/control-plane/projects'),
+  listProjects: (orgId: string) =>
+    iamRequest<{ projects: IamProject[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects`),
 
-  updateProject: (projectId: string, project: Partial<IamProject>) =>
-    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`, {
+  updateProject: (orgId: string, projectId: string, project: Partial<IamProject>) =>
+    iamRequest<IamProject>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
       body: JSON.stringify(project),
     }),
 
-  archiveProject: (projectId: string) =>
-    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/archive`, {
+  archiveProject: (orgId: string, projectId: string) =>
+    iamRequest<IamProject>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/archive`, {
       method: 'POST',
     }),
 
@@ -564,20 +564,20 @@ export const iamProjectApi = {
       body: JSON.stringify({ capability }),
     }),
 
-  listProjectCapabilities: (projectId: string) =>
+  listProjectCapabilities: (orgId: string, projectId: string) =>
     iamRequest<{ capabilities: IamProjectCapability[] }>(
-      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/capabilities`,
     ),
 
-  enableProjectCapability: (projectId: string, capabilityId: string) =>
+  enableProjectCapability: (orgId: string, projectId: string, capabilityId: string) =>
     iamRequest<IamProjectCapability>(
-      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:enable`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:enable`,
       { method: 'POST' },
     ),
 
-  disableProjectCapability: (projectId: string, capabilityId: string) =>
+  disableProjectCapability: (orgId: string, projectId: string, capabilityId: string) =>
     iamRequest<IamProjectCapability>(
-      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:disable`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:disable`,
       { method: 'POST' },
     ),
 };

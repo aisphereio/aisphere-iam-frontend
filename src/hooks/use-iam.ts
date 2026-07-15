@@ -145,18 +145,19 @@ export function useIamArchiveOrganization() {
 
 // ─── Control Plane Projects ────────────────────────────────────────────
 
-export function useIamProjects() {
+export function useIamProjects(orgId?: string) {
   return useQuery({
-    queryKey: ['iam', 'projects'],
-    queryFn: () => iamProjectApi.listProjects(),
+    queryKey: ['iam', 'projects', orgId],
+    queryFn: () => iamProjectApi.listProjects(orgId || ''),
+    enabled: Boolean(orgId),
   });
 }
 
-export function useIamProject(projectId: string) {
+export function useIamProject(orgId: string, projectId: string) {
   return useQuery({
-    queryKey: ['iam', 'project', projectId],
-    queryFn: () => iamProjectApi.getProject(projectId),
-    enabled: Boolean(projectId),
+    queryKey: ['iam', 'project', orgId, projectId],
+    queryFn: () => iamProjectApi.getProject(orgId, projectId),
+    enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
 
@@ -178,11 +179,11 @@ export function useIamCapabilities() {
   });
 }
 
-export function useIamProjectCapabilities(projectId: string) {
+export function useIamProjectCapabilities(orgId: string, projectId: string) {
   return useQuery({
-    queryKey: ['iam', 'project-capabilities', projectId],
-    queryFn: () => iamProjectApi.listProjectCapabilities(projectId),
-    enabled: Boolean(projectId),
+    queryKey: ['iam', 'project-capabilities', orgId, projectId],
+    queryFn: () => iamProjectApi.listProjectCapabilities(orgId, projectId),
+    enabled: Boolean(orgId) && Boolean(projectId),
   });
 }
 
