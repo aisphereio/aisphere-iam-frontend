@@ -43,10 +43,11 @@ import {
   useIamGrantAccess,
   useIamRevokeAccess,
 } from '@/hooks/use-iam';
+import { useMe } from '@/hooks/use-auth';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { ExternalUsersPage } from './users-page';
-import type { IamCpOrganization, Tab } from '@/lib/api/types';
+import type { IamCpOrganization, IamPrincipal, Tab } from '@/lib/api/types';
 
 // ─── Main IAM Page ─────────────────────────────────────────────────────
 // Content is driven by the sidebar navigation — no horizontal tab bar.
@@ -298,10 +299,12 @@ function OrganizationsTab() {
 
 function ProjectsTab() {
   const t = useT();
+  const { data: me } = useMe();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ orgId: '', slug: '', displayName: '', description: '' });
+  const orgId = me?.orgId || '';
 
-  const { data, isLoading, refetch } = useIamProjects();
+  const { data, isLoading, refetch } = useIamProjects(orgId);
   const { data: orgsData } = useIamOrganizations();
   const createMutation = useIamCreateProject();
   const projects = data?.projects || [];
@@ -412,6 +415,8 @@ function ProjectsTab() {
 
 function GrantsTab() {
   const t = useT();
+  const { data: me } = useMe();
+  const orgId = me?.orgId || '';
   const [showGrant, setShowGrant] = useState(false);
   const [grantForm, setGrantForm] = useState({
     resourceType: '', resourceId: '',
@@ -421,9 +426,9 @@ function GrantsTab() {
   });
 
   const { data: rolesData, isLoading: rolesLoading } = useIamRoleTemplates();
-  const { data: grantsData, isLoading: grantsLoading, refetch: refetchGrants } = useIamGrants('');
-  const grantMutation = useIamGrantAccess('');
-  const revokeMutation = useIamRevokeAccess('');
+  const { data: grantsData, isLoading: grantsLoading, refetch: refetchGrants } = useIamGrants(orgId);
+  const grantMutation = useIamGrantAccess(orgId);
+  const revokeMutation = useIamRevokeAccess(orgId);
 
   const roleTemplates = rolesData?.roleTemplates || [];
   const grants = grantsData?.grants || [];
@@ -625,10 +630,12 @@ function GrantsTab() {
 
 function ResourcesTab() {
   const t = useT();
+  const { data: me } = useMe();
+  const orgId = me?.orgId || '';
   const [filterType, setFilterType] = useState('');
 
   const { data: typesData, isLoading: typesLoading } = useIamResourceTypes();
-  const { data: resourcesData, isLoading: resourcesLoading, refetch: refetchResources } = useIamResources('', filterType ? { type: filterType } : undefined);
+  const { data: resourcesData, isLoading: resourcesLoading, refetch: refetchResources } = useIamResources(orgId, filterType ? { type: filterType } : undefined);
 
   const resourceTypes = typesData?.resourceTypes || [];
   const resources = resourcesData?.resources || [];
