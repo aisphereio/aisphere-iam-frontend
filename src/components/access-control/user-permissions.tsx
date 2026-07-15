@@ -13,7 +13,7 @@ export function UserPermissions({ identityOrg }: { identityOrg: string }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const usersQuery = useIamExternalUsers(identityOrg, { pageSize: 500 });
-  const grantsQuery = useIamGrants(selectedUserId ? { subjectType: 'user', subjectId: selectedUserId } : undefined);
+  const grantsQuery = useIamGrants(identityOrg, selectedUserId ? { subjectType: 'user', subjectId: selectedUserId } : undefined);
   const resourceTypesQuery = useIamResourceTypes();
   const rolesQuery = useIamRoleTemplates();
 

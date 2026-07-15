@@ -36,12 +36,12 @@ export function AccessAssignments({ identityOrg }: { identityOrg: string }) {
 
   const resourceTypesQuery = useIamResourceTypes();
   const rolesQuery = useIamRoleTemplates();
-  const resourcesQuery = useIamResources({ type: resourceType || undefined, orgId: identityOrg || undefined });
+  const resourcesQuery = useIamResources(identityOrg, { type: resourceType || undefined });
   const usersQuery = useIamExternalUsers(identityOrg, { pageSize: 500 });
   const groupsQuery = useIamDirectoryGroups(identityOrg);
-  const grantsQuery = useIamGrants();
-  const grantAccess = useIamGrantAccess();
-  const revokeAccess = useIamRevokeAccess();
+  const grantsQuery = useIamGrants(identityOrg);
+  const grantAccess = useIamGrantAccess(identityOrg);
+  const revokeAccess = useIamRevokeAccess(identityOrg);
 
   const resourceTypes = resourceTypesQuery.data?.resourceTypes || [];
   const roles = useMemo(

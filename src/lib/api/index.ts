@@ -596,19 +596,19 @@ export const iamResourceService = {
   listResourceTypes: () =>
     iamRequest<Record<string, unknown>>('/v1/iam/control-plane/resource-types').then(normalizeIamResourceTypesResponse),
 
-  listResources: (params?: { type?: string; orgId?: string; projectId?: string }) =>
+  listResources: (orgId: string, params?: { type?: string; projectId?: string }) =>
     iamRequest<{ resources: IamResource[] }>(
-      `/v1/iam/control-plane/resources${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/resources${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
     ),
 
-  getResource: (resourceType: string, resourceId: string) =>
+  getResource: (orgId: string, resourceType: string, resourceId: string) =>
     iamRequest<IamResource>(
-      `/v1/iam/control-plane/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}`,
     ),
 
-  listResourceBindings: (params?: { resourceType?: string; resourceId?: string }) =>
+  listResourceBindings: (orgId: string, params?: { resourceType?: string; resourceId?: string }) =>
     iamRequest<{ bindings: IamResourceBinding[] }>(
-      `/v1/iam/control-plane/resource-bindings${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/resource-bindings${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
     ),
 };
 
@@ -641,7 +641,7 @@ export const iamGrantService = {
   listRoleTemplates: () =>
     iamRequest<unknown>('/v1/iam/control-plane/role-templates').then(normalizeIamRoleTemplatesReply),
 
-  grantAccess: (grant: {
+  grantAccess: (orgId: string, grant: {
     resource?: { type: string; id: string };
     roleKey?: string;
     subject?: { type: string; id: string; relation?: string };
@@ -649,24 +649,24 @@ export const iamGrantService = {
     reason?: string;
     expiresAt?: string;
   }) =>
-    iamRequest<IamGrant>('/v1/iam/control-plane/grants', {
+    iamRequest<IamGrant>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/grants`, {
       method: 'POST',
       body: JSON.stringify(grant),
     }),
 
-  revokeAccess: (grantId: string) =>
+  revokeAccess: (orgId: string, grantId: string) =>
     iamRequest<{ grantId: string; revoked: boolean; consistencyToken?: string }>(
-      `/v1/iam/control-plane/grants/${encodeURIComponent(grantId)}/revoke`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/grants/${encodeURIComponent(grantId)}/revoke`,
       { method: 'POST' },
     ),
 
-  listGrants: (params?: { resourceType?: string; resourceId?: string; subjectType?: string; subjectId?: string }) =>
+  listGrants: (orgId: string, params?: { resourceType?: string; resourceId?: string; subjectType?: string; subjectId?: string }) =>
     iamRequest<{ grants: IamGrant[] }>(
-      `/v1/iam/control-plane/grants${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
+      `/v1/iam/orgs/${encodeURIComponent(orgId)}/grants${params ? `?${toQuery(params as Record<string, unknown>)}` : ''}`,
     ),
 
-  explainAccess: (params: { resource: { type: string; id: string }; permission: string; subject: { type: string; id: string } }) =>
-    iamRequest<{ allowed: boolean; steps: unknown[] }>('/v1/iam/control-plane/access:explain', {
+  explainAccess: (orgId: string, params: { resource: { type: string; id: string }; permission: string; subject: { type: string; id: string } }) =>
+    iamRequest<{ allowed: boolean; steps: unknown[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/access:explain`, {
       method: 'POST',
       body: JSON.stringify(params),
     }),

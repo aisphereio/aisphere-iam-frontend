@@ -421,9 +421,9 @@ function GrantsTab() {
   });
 
   const { data: rolesData, isLoading: rolesLoading } = useIamRoleTemplates();
-  const { data: grantsData, isLoading: grantsLoading, refetch: refetchGrants } = useIamGrants();
-  const grantMutation = useIamGrantAccess();
-  const revokeMutation = useIamRevokeAccess();
+  const { data: grantsData, isLoading: grantsLoading, refetch: refetchGrants } = useIamGrants('');
+  const grantMutation = useIamGrantAccess('');
+  const revokeMutation = useIamRevokeAccess('');
 
   const roleTemplates = rolesData?.roleTemplates || [];
   const grants = grantsData?.grants || [];
@@ -628,7 +628,7 @@ function ResourcesTab() {
   const [filterType, setFilterType] = useState('');
 
   const { data: typesData, isLoading: typesLoading } = useIamResourceTypes();
-  const { data: resourcesData, isLoading: resourcesLoading, refetch: refetchResources } = useIamResources(filterType ? { type: filterType } : {});
+  const { data: resourcesData, isLoading: resourcesLoading, refetch: refetchResources } = useIamResources('', filterType ? { type: filterType } : undefined);
 
   const resourceTypes = typesData?.resourceTypes || [];
   const resources = resourcesData?.resources || [];

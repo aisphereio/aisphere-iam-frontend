@@ -41,10 +41,10 @@ export function GrantWizard({ identityOrg, resourceType: presetResourceType, res
 
   const resourceTypesQuery = useIamResourceTypes();
   const rolesQuery = useIamRoleTemplates();
-  const resourcesQuery = useIamResources({ type: selectedResourceType || undefined, orgId: identityOrg || undefined });
+  const resourcesQuery = useIamResources(identityOrg, { type: selectedResourceType || undefined });
   const usersQuery = useIamExternalUsers(identityOrg, { pageSize: 500 });
   const groupsQuery = useIamDirectoryGroups(identityOrg);
-  const grantAccess = useIamGrantAccess();
+  const grantAccess = useIamGrantAccess(identityOrg);
 
   const resourceTypes = resourceTypesQuery.data?.resourceTypes || [];
   const allRoles = rolesQuery.data?.roleTemplates || [];

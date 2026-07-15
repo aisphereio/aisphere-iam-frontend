@@ -196,17 +196,19 @@ export function useIamResourceTypes() {
   });
 }
 
-export function useIamResources(params?: { type?: string; orgId?: string; projectId?: string }) {
+export function useIamResources(orgId?: string, params?: { type?: string; projectId?: string }) {
   return useQuery({
-    queryKey: ['iam', 'resources', params],
-    queryFn: () => iamResourceService.listResources(params),
+    queryKey: ['iam', 'resources', orgId, params],
+    queryFn: () => iamResourceService.listResources(orgId || '', params),
+    enabled: Boolean(orgId),
   });
 }
 
-export function useIamResourceBindings(params?: { resourceType?: string; resourceId?: string }) {
+export function useIamResourceBindings(orgId?: string, params?: { resourceType?: string; resourceId?: string }) {
   return useQuery({
-    queryKey: ['iam', 'resource-bindings', params],
-    queryFn: () => iamResourceService.listResourceBindings(params),
+    queryKey: ['iam', 'resource-bindings', orgId, params],
+    queryFn: () => iamResourceService.listResourceBindings(orgId || '', params),
+    enabled: Boolean(orgId),
   });
 }
 
@@ -219,19 +221,20 @@ export function useIamRoleTemplates() {
   });
 }
 
-export function useIamGrants(params?: {
+export function useIamGrants(orgId?: string, params?: {
   resourceType?: string;
   resourceId?: string;
   subjectType?: string;
   subjectId?: string;
 }) {
   return useQuery({
-    queryKey: ['iam', 'grants', params],
-    queryFn: () => iamGrantService.listGrants(params),
+    queryKey: ['iam', 'grants', orgId, params],
+    queryFn: () => iamGrantService.listGrants(orgId || '', params),
+    enabled: Boolean(orgId),
   });
 }
 
-export function useIamGrantAccess() {
+export function useIamGrantAccess(orgId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (grant: {
@@ -241,16 +244,16 @@ export function useIamGrantAccess() {
       source?: string;
       reason?: string;
       expiresAt?: string;
-    }) => iamGrantService.grantAccess(grant),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'grants'] }),
+    }) => iamGrantService.grantAccess(orgId || '', grant),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'grants', orgId] }),
   });
 }
 
-export function useIamRevokeAccess() {
+export function useIamRevokeAccess(orgId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (grantId: string) => iamGrantService.revokeAccess(grantId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'grants'] }),
+    mutationFn: (grantId: string) => iamGrantService.revokeAccess(orgId || '', grantId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['iam', 'grants', orgId] }),
   });
 }
 
@@ -287,9 +290,9 @@ export function useIamPreviewRoleTemplateImpact() {
   });
 }
 
-export function useIamExplainAccess() {
+export function useIamExplainAccess(orgId?: string) {
   return useMutation({
     mutationFn: (params: { resource: { type: string; id: string }; permission: string; subject: { type: string; id: string } }) =>
-      iamGrantService.explainAccess(params),
+      iamGrantService.explainAccess(orgId || '', params),
   });
 }

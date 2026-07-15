@@ -32,11 +32,11 @@ export function PermissionDiagnosis({ identityOrg, scopeRail }: { identityOrg: s
   const [showTechDetails, setShowTechDetails] = useState(false);
 
   const resourceTypesQuery = useIamResourceTypes();
-  const resourcesQuery = useIamResources({ type: resourceType || undefined, orgId: identityOrg || undefined });
+  const resourcesQuery = useIamResources(identityOrg, { type: resourceType || undefined });
   const usersQuery = useIamExternalUsers(identityOrg, { pageSize: 500 });
   const groupsQuery = useIamDirectoryGroups(identityOrg);
   const rolesQuery = useIamRoleTemplates();
-  const explain = useIamExplainAccess();
+  const explain = useIamExplainAccess(identityOrg);
   const resourceTypes = resourceTypesQuery.data?.resourceTypes || [];
   const selectedType = resourceTypes.find((item) => item.type === resourceType);
   const permissions = selectedType?.permissions || [];

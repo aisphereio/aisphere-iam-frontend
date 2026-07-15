@@ -33,11 +33,11 @@ export function ResourcePermissions({ identityOrg, onNavigate }: ResourcePermiss
   const [selectedResource, setSelectedResource] = useState<{ type: string; id: string; displayName?: string } | null>(null);
   const [activeTab, setActiveTab] = useState('members');
 
-  const projectsQuery = useIamProjects();
-  const resourcesQuery = useIamResources({ orgId: identityOrg || undefined });
+  const projectsQuery = useIamProjects(identityOrg);
+  const resourcesQuery = useIamResources(identityOrg);
   const resourceTypesQuery = useIamResourceTypes();
   const rolesQuery = useIamRoleTemplates();
-  const grantsQuery = useIamGrants(
+  const grantsQuery = useIamGrants(identityOrg,
     selectedResource ? { resourceType: selectedResource.type, resourceId: selectedResource.id } : undefined,
   );
   const effectivePerms = useIamEffectivePermissions();
