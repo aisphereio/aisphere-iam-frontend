@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/aisphereio/aisphere-iam.git",
-  "git_sha": "567dce4a2ebd1ca23679e15fd5ff3627ba1edb20",
+  "git_sha": "fabaf8d797324c254236f6d3de136924ae51d962",
   "ref": "agent/contract-delivery",
   "sha256": "771d9fd4ad138ec691ace535b487832ba3b7a7131a3c77335400ceaad62c3abb",
   "kernel_version": "v0.4.15",
