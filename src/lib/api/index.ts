@@ -374,13 +374,13 @@ export const iamDirectoryApi = {
   createGroup: (orgId: string, group: IamGroupWrite & { name: string }) =>
     iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`, {
       method: 'POST',
-      body: JSON.stringify({ group }),
+      body: JSON.stringify(group),
     }).then(normalizeIamGroup),
 
   updateGroup: (orgId: string, groupId: string, group: IamGroupWrite) =>
     iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ group }),
+      body: JSON.stringify(group),
     }).then(normalizeIamGroup),
 
   deleteGroup: (orgId: string, groupId: string, recursive = false) =>
