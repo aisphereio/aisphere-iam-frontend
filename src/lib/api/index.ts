@@ -338,9 +338,6 @@ function normalizeIamResourceTypesResponse(input: unknown): { resourceTypes: Iam
 export const iamAuthApi = {
   /** Get current user principal from the IAM backend. */
   getMe: () => iamRequest<IamPrincipal>('/v1/iam/me'),
-
-  /** IAM backend logout endpoint. */
-  logoutUrl: () => Promise.resolve('/v1/iam/logout'),
 };
 
 /** IAM Directory Service */
