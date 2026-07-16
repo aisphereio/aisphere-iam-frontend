@@ -24,11 +24,15 @@ const SOURCE_TYPE_MAP: Record<number, IamEntitlementSourceType> = {
 };
 
 function normalizeSourceType(raw: unknown): IamEntitlementSourceType | undefined {
-  if (typeof raw === 'string' && raw in SOURCE_TYPE_MAP) {
-    return raw as IamEntitlementSourceType;
-  }
-  if (typeof raw === 'number' && raw in SOURCE_TYPE_MAP) {
+  if (typeof raw === 'number') {
     return SOURCE_TYPE_MAP[raw];
+  }
+  if (typeof raw === 'string') {
+    // Check if it's already a valid source type string
+    const validValues: IamEntitlementSourceType[] = ['DIRECT_GRANT', 'GROUP_GRANT', 'PARENT_INHERITANCE', 'ORG_INHERITANCE', 'PLATFORM_INHERITANCE'];
+    if (validValues.includes(raw as IamEntitlementSourceType)) {
+      return raw as IamEntitlementSourceType;
+    }
   }
   return undefined;
 }
