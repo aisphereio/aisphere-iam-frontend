@@ -53,6 +53,9 @@ export function buildGroupMap(groups: IamGroup[]): Map<string, IamGroup> {
   for (const group of groups) {
     const id = groupId(group);
     if (id) map.set(id, group);
+    // Also index by name so lookups by Casdoor parentId (which is the parent's
+    // name, not its UUID id) resolve correctly.
+    if (group.name && group.name !== id) map.set(group.name, group);
   }
   return map;
 }

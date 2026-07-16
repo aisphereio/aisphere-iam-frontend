@@ -120,7 +120,7 @@ function PickerTreeRows({
           (c) => !excludedIds.has(groupID(c)),
         ).length;
         const isExpanded = expandedIds.has(id);
-        const isSelected = selectedValue === id;
+        const isSelected = selectedValue === id || selectedValue === group.name;
         const hasChildren = childCount > 0;
 
         return (
@@ -219,7 +219,11 @@ export function GroupTreePicker({
     return new Set([excludeId, ...collectDescendantIds(excludeId, childrenMap)]);
   }, [excludeId, childrenMap]);
 
-  const selectedGroup = value ? groupMap.get(value) : null;
+  // Look up the selected group by id or name (Casdoor's parentId may be name).
+  const selectedGroup = useMemo(() => {
+    if (!value) return null;
+    return groupMap.get(value) || groups.find((g) => g.name === value) || null;
+  }, [value, groupMap, groups]);
   const selectedLabel = selectedGroup
     ? buildGroupPath(selectedGroup, groupMap, rootLabel).join(' › ')
     : '';
@@ -237,7 +241,11 @@ export function GroupTreePicker({
   };
 
   const handleSelect = (id: string) => {
-    onChange(id);
+    // Casdoor's ParentId expects the parent group's name (not its UUID id).
+    // Resolve the selected group and send its name so the backend can pass it
+    // directly to Casdoor's update-group API.
+    const group = groupMap.get(id);
+    onChange(group ? group.name : id);
     setOpen(false);
     setSearch('');
   };
@@ -329,7 +337,7 @@ export function GroupTreePicker({
                           <div className="text-xs font-medium truncate">{groupLabel(group)}</div>
                           <div className="text-[10px] text-muted-foreground truncate">{path}</div>
                         </div>
-                        {value === id ? <Check className="h-3.5 w-3.5 text-violet-500 shrink-0" /> : null}
+                        {value === id || value === group.name ? <Check className="h-3.5 w-3.5 text-violet-500 shrink-0" /> : null}
                       </CommandItem>
                     );
                   })}
