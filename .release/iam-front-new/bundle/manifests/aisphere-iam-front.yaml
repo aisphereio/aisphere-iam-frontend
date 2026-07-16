@@ -1,0 +1,251 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/part-of: aisphere
+  name: aisphere
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: aisphere-iam-frontend
+    app.kubernetes.io/part-of: aisphere
+  name: aisphere-iam-frontend
+  namespace: aisphere
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: aisphere-iam-frontend
+    app.kubernetes.io/name: aisphere-iam-frontend
+    app.kubernetes.io/part-of: aisphere
+    service: iam-frontend
+  name: aisphere-iam-frontend
+  namespace: aisphere
+spec:
+  ports:
+  - name: http
+    port: 3000
+    protocol: TCP
+    targetPort: http
+  selector:
+    app: aisphere-iam-frontend
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: aisphere-iam-frontend
+    app.kubernetes.io/name: aisphere-iam-frontend
+    app.kubernetes.io/part-of: aisphere
+    service: iam-frontend
+  name: aisphere-iam-frontend
+  namespace: aisphere
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: aisphere-iam-frontend
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: aisphere-iam-frontend
+        app.kubernetes.io/name: aisphere-iam-frontend
+        app.kubernetes.io/part-of: aisphere
+        service: iam-frontend
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: NODE_ENV
+          value: production
+        - name: NEXT_TELEMETRY_DISABLED
+          value: "1"
+        - name: PORT
+          value: "3001"
+        - name: HOSTNAME
+          value: 0.0.0.0
+        - name: TZ
+          value: Asia/Shanghai
+        - name: NEXT_PUBLIC_IAM_URL
+          value: ""
+        - name: NEXT_PUBLIC_GATEWAY_LOGIN_URL
+          value: https://iam.weagent.cc/
+        - name: NEXT_PUBLIC_GATEWAY_LOGOUT_URL
+          value: https://iam.weagent.cc/logout
+        image: registry.cn-beijing.aliyuncs.com/ainfracn/aisphere-iam-frontend@sha256:53c32c771fa8285224153f50d0674ec8da2816060ff4c2699535e4f6d6586c34
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /api/healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 20
+          timeoutSeconds: 3
+        name: frontend
+        ports:
+        - containerPort: 3001
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /api/healthz
+            port: http
+          initialDelaySeconds: 2
+          periodSeconds: 10
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /api/healthz
+            port: http
+          periodSeconds: 5
+        volumeMounts:
+        - mountPath: /app/.next/cache
+          name: next-cache
+        - mountPath: /tmp
+          name: tmp
+      imagePullSecrets:
+      - name: aliyun-registry
+      securityContext:
+        fsGroup: 1001
+        runAsGroup: 1001
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: aisphere-iam-frontend
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir:
+          sizeLimit: 256Mi
+        name: next-cache
+      - emptyDir:
+          sizeLimit: 64Mi
+        name: tmp
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: aisphere-iam-frontend
+    app.kubernetes.io/part-of: aisphere
+  name: iam-console-oidc
+  namespace: aisphere
+spec:
+  jwt:
+    providers:
+    - audiences:
+      - 869aff97ab0408cbbd1c
+      claimToHeaders:
+      - claim: id
+        header: x-aisphere-external-sub
+      - claim: email
+        header: x-aisphere-external-email
+      - claim: name
+        header: x-aisphere-external-name
+      - claim: preferred_username
+        header: x-aisphere-external-username
+      - claim: iss
+        header: x-aisphere-external-issuer
+      - claim: owner
+        header: x-aisphere-external-owner
+      - claim: sub
+        header: x-aisphere-external-id
+      - claim: displayName
+        header: x-aisphere-external-display-name
+      - claim: scope
+        header: x-aisphere-external-scope
+      extractFrom:
+        cookies:
+        - Aisphere-IAM-AccessToken
+        headers:
+        - name: Authorization
+          valuePrefix: 'Bearer '
+      issuer: https://casdoor.weagent.cc:30723
+      name: casdoor
+      remoteJWKS:
+        uri: http://casdoor.aisphere:8000/.well-known/jwks
+  oidc:
+    clientID: 869aff97ab0408cbbd1c
+    clientSecret:
+      name: casdoor-iam-oidc
+    cookieNames:
+      accessToken: Aisphere-IAM-AccessToken
+      idToken: Aisphere-IAM-IDToken
+    forwardAccessToken: true
+    logoutPath: /logout
+    passThroughAuthHeader: true
+    provider:
+      authorizationEndpoint: https://casdoor.weagent.cc:30723/login/oauth/authorize
+      issuer: https://casdoor.weagent.cc:30723
+      tokenEndpoint: http://casdoor.aisphere:8000/api/login/oauth/access_token
+    redirectURL: https://iam.weagent.cc:30723/oauth2/callback
+    refreshToken: true
+    scopes:
+    - openid
+    - profile
+    - email
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: iam-console
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/name: aisphere-iam-frontend
+    app.kubernetes.io/part-of: aisphere
+  name: iam-console
+  namespace: aisphere
+spec:
+  hostnames:
+  - iam.weagent.cc
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: aisphere-gateway
+    namespace: aisphere
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: aisphere-iam-frontend
+      port: 3000
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
+  - backendRefs:
+    - name: aisphere-iam
+      port: 18080
+    matches:
+    - path:
+        type: PathPrefix
+        value: /v1/iam

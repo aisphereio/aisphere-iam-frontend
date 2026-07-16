@@ -1,0 +1,5 @@
+771d9fd4ad138ec691ace535b487832ba3b7a7131a3c77335400ceaad62c3abb  ./contract/aisphere.swagger.json
+1d4030dd6ea52fdf030a119d9e11aa005b923c98a13643676284d75c29e76b50  ./contract/contract-lock.json
+031e897c50aa0effbf129c9944cba018db717302bed40b301e0d917661708e91  ./image-ref.txt
+fba252085f21a1764288cb55e7cbc95c0395f70e015d7705ea4df2561d23cde0  ./manifests/aisphere-iam-front.yaml
+8ca77165a28e9a2f39da97a504a02c95bebcd383181248145ec12a0b55a39c99  ./source-sha.txt

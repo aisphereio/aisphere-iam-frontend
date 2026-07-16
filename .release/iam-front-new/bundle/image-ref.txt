@@ -1,0 +1,1 @@
+registry.cn-beijing.aliyuncs.com/ainfracn/aisphere-iam-frontend@sha256:53c32c771fa8285224153f50d0674ec8da2816060ff4c2699535e4f6d6586c34

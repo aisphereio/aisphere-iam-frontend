@@ -72,13 +72,19 @@ export const iamDirectoryApi = {
     group: Pick<V1Group, 'parentId' | 'name' | 'displayName' | 'type'>,
   ): Promise<IamGroup> => {
     const { parentId } = group;
-    const groupBody = {
+    const groupBody: Record<string, unknown> = {
       ...(group.name !== undefined ? { name: group.name } : {}),
       ...(group.displayName !== undefined ? { displayName: group.displayName } : {}),
       ...(group.type !== undefined ? { type: group.type } : {}),
     };
-    const body = parentId === undefined ? { group: groupBody } : { group: groupBody, parentId };
-    return iAMGroupAdminServiceUpdateGroup(orgId, groupId, body).then((g) => normalizeIamGroup(g as unknown as Record<string, unknown>));
+    // parentId must be sent as snake_case "parent_id" inside the group object
+    // because the backend protobuf JSON encoder uses snake_case field names
+    // (json:"parent_id,omitempty") and the PATCH body: "*" binding maps the
+    // entire body to UpdateGroupRequest which nests Group fields.
+    if (parentId !== undefined) {
+      groupBody.parent_id = parentId || '';
+    }
+    return iAMGroupAdminServiceUpdateGroup(orgId, groupId, { group: groupBody as V1Group }).then((g) => normalizeIamGroup(g as unknown as Record<string, unknown>));
   },
 
   deleteGroup: (orgId: string, groupId: string, recursive = false): Promise<{ success: boolean }> =>
