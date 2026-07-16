@@ -81,9 +81,9 @@ export const iamDirectoryApi = {
     // because the backend protobuf JSON encoder uses snake_case field names
     // (json:"parent_id,omitempty") and the PATCH body: "*" binding maps the
     // entire body to UpdateGroupRequest which nests Group fields.
-    if (parentId !== undefined) {
-      groupBody.parent_id = parentId || '';
-    }
+    // When parentId is undefined (user cleared the field to make it top-level),
+    // we must send parent_id: "" to tell the backend to clear the parent.
+    groupBody.parent_id = parentId ?? '';
     return iAMGroupAdminServiceUpdateGroup(orgId, groupId, { group: groupBody as V1Group }).then((g) => normalizeIamGroup(g as unknown as Record<string, unknown>));
   },
 
