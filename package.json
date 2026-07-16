@@ -11,9 +11,10 @@
     "test:watch": "vitest --watch",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit --pretty false",
-    "contract:check": "node scripts/verify-contract-lock.mjs",
-    "api:generate": "orval --config orval.config.ts",
-    "api:check": "npm run contract:check && npm run api:generate && git diff --exit-code -- src/lib/api/generated"
+"contract:check": "node scripts/verify-contract-lock.mjs",
+	    "contract:sync": "node scripts/sync-contract.mjs",
+	    "api:generate": "orval --config orval.config.ts",
+	    "api:check": "npm run contract:check && npm run api:generate && git diff --exit-code -- src/lib/api/generated"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
