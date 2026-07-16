@@ -13,6 +13,8 @@
 *.yml text
 *.mjs text
 *.mts text
+openapi/*.json text eol=lf
+src/lib/api/generated/** text eol=lf linguist-generated=true
 
 # Binary files
 *.png binary

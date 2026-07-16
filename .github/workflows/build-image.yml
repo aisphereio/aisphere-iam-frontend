@@ -1,83 +1,157 @@
-name: Build and Push Frontend Image
+name: Verify and deliver frontend image
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional additional immutable image tag
+        required: false
+        type: string
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
-  group: frontend-image-${{ github.ref }}
+  group: frontend-delivery-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   IMAGE_NAME: aisphere-iam-frontend
+  KUSTOMIZE_VERSION: v5.7.1
 
 jobs:
-  build:
-    name: Build frontend image
+  verify:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Set up Go for pinned Kustomize
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: false
 
-      - name: Verify production build
+      - name: Install dependencies and Kustomize
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          mkdir -p "${RUNNER_TEMP}/bin"
+          GOBIN="${RUNNER_TEMP}/bin" go install "sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+
+      - name: Verify locked contract and generated SDK
+        run: npm run api:check
+
+      - name: Test and typecheck
+        run: |
+          npm run test:run
+          npm run typecheck
+
+      - name: Build production frontend
         run: npm run build
         env:
           NEXT_PUBLIC_IAM_URL: ${{ vars.NEXT_PUBLIC_IAM_URL }}
           NEXT_PUBLIC_GATEWAY_LOGIN_URL: ${{ vars.NEXT_PUBLIC_GATEWAY_LOGIN_URL }}
           NEXT_PUBLIC_GATEWAY_LOGOUT_URL: ${{ vars.NEXT_PUBLIC_GATEWAY_LOGOUT_URL }}
 
-      - name: Setup Docker Buildx
+      - name: Render deployment YAML
+        shell: bash
+        run: kustomize build deploy > "${RUNNER_TEMP}/aisphere-iam-front.yaml"
+
+      - name: Verify workflow has no deployment authority
+        run: node scripts/verify-delivery-workflow.mjs
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Aliyun Container Registry
-        if: github.event_name != 'pull_request'
+      - name: Build container without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: aisphere-iam-frontend:verify-${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_IAM_URL=${{ vars.NEXT_PUBLIC_IAM_URL }}
+            NEXT_PUBLIC_GATEWAY_LOGIN_URL=${{ vars.NEXT_PUBLIC_GATEWAY_LOGIN_URL }}
+            NEXT_PUBLIC_GATEWAY_LOGOUT_URL=${{ vars.NEXT_PUBLIC_GATEWAY_LOGOUT_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go for pinned Kustomize
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - name: Install pinned Kustomize
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/bin"
+          GOBIN="${RUNNER_TEMP}/bin" go install "sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Aliyun Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ secrets.ALIYUN_REGISTRY }}
           username: ${{ secrets.ALIYUN_USERNAME }}
           password: ${{ secrets.ALIYUN_PASSWORD }}
 
-      - name: Generate image metadata
+      - name: Compute image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.ALIYUN_REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=sha,format=short,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-
             type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' }}
           labels: |
             org.opencontainers.image.title=aisphere-iam-frontend
             org.opencontainers.image.description=Aisphere IAM web console
 
-      - name: Build and push image
+      - name: Build and publish immutable image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -86,15 +160,41 @@ jobs:
             NEXT_PUBLIC_GATEWAY_LOGOUT_URL=${{ vars.NEXT_PUBLIC_GATEWAY_LOGOUT_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: false
 
-      - name: Publish build summary
-        if: always()
+      - name: Render digest-pinned delivery bundle
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
+          IMAGE_NAMESPACE: ${{ secrets.ALIYUN_NAMESPACE }}
         run: |
-          {
-            echo '### Frontend image build'
-            echo
-            echo '- Repository: `${{ secrets.ALIYUN_REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/${{ env.IMAGE_NAME }}`'
-            echo '- Commit: `${{ github.sha }}`'
-            echo '- Pushed: `${{ github.event_name != 'pull_request' }}`'
-          } >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          image="${REGISTRY}/${IMAGE_NAMESPACE}/${IMAGE_NAME}"
+          image_ref="${image}@${IMAGE_DIGEST}"
+          short_sha="${GITHUB_SHA:0:7}"
+
+          mkdir -p dist/manifests dist/contract
+          cp openapi/aisphere.swagger.json dist/contract/aisphere.swagger.json
+          cp openapi/contract-lock.json dist/contract/contract-lock.json
+          printf '%s\n' "${image_ref}" > dist/image-ref.txt
+          printf '%s\n' "${GITHUB_SHA}" > dist/source-sha.txt
+
+          (cd deploy && kustomize edit set image "registry.cn-beijing.aliyuncs.com/ainfracn/aisphere-iam-frontend=${image_ref}")
+          kustomize build deploy > dist/manifests/aisphere-iam-front.yaml
+
+          (cd dist && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          (cd dist && zip -q -r "../aisphere-iam-front-delivery-${short_sha}.zip" .)
+
+      - name: Upload delivery bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: aisphere-iam-front-delivery-${{ github.sha }}
+          path: aisphere-iam-front-delivery-*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach bundle to tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: aisphere-iam-front-delivery-*.zip
