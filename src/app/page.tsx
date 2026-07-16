@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { GrantEditor } from '@/components/access-control/grant-editor';
 import { AdvancedGovernance } from '@/components/access-control/advanced-governance';
 import { PermissionDiagnosis } from '@/components/access-control/permission-diagnosis';
+import { PermissionInsightPage } from '@/components/access-control/permission-insight/permission-insight-page';
 import { PlatformGovernance } from '@/components/access-control/platform-governance';
 import { ResourcePermissions } from '@/components/access-control/resource-permissions';
 import { UserPermissions } from '@/components/access-control/user-permissions';
@@ -49,7 +50,7 @@ const queryClient = new QueryClient({
 
 function PageRouter({ tab, identityOrg, onTabChange }: { tab: Tab; identityOrg: string; onTabChange: (tab: Tab) => void }) {
   if (tab === 'users') return <ExternalUsersPage identityOrg={identityOrg} />;
-  if (tab === 'groups') return <GroupsPage identityOrg={identityOrg} />;
+  if (tab === 'groups') return <GroupsPage identityOrg={identityOrg} onTabChange={onTabChange} />;
   if (tab === 'permissions' || tab === 'grants') return <GrantEditor identityOrg={identityOrg} />;
   if (tab === 'roles') return <RoleLibrary onAssign={() => onTabChange('grants')} />;
   if (tab === 'permission-diagnosis') return <PermissionDiagnosis identityOrg={identityOrg} />;
@@ -57,6 +58,7 @@ function PageRouter({ tab, identityOrg, onTabChange }: { tab: Tab; identityOrg: 
   if (tab === 'platform-governance') return <PlatformGovernance />;
   if (tab === 'resource-permissions') return <ResourcePermissions identityOrg={identityOrg} onNavigate={(t) => onTabChange(t as Tab)} />;
   if (tab === 'user-permissions') return <UserPermissions identityOrg={identityOrg} />;
+  if (tab === 'permission-insight') return <PermissionInsightPage identityOrg={identityOrg} />;
   return <IamPage tab={tab} />;
 }
 

@@ -52,6 +52,7 @@ function getNavSections(principal: Record<string, unknown> | null): NavSection[]
         { key: 'user-permissions', label: '人员权限', hint: '查看某个人的全部权限', icon: <Users className="h-4 w-4" /> },
         { key: 'roles', label: '角色模板', hint: '这个角色能够做什么', icon: <KeyRound className="h-4 w-4" /> },
         { key: 'permission-diagnosis', label: '权限排查', hint: '为什么允许或拒绝这次访问', icon: <SearchCheck className="h-4 w-4" /> },
+        { key: 'permission-insight', label: '权限视图', hint: '统一查看人员、组织、资源的权限', icon: <SearchCheck className="h-4 w-4" /> },
       ],
     },
     {

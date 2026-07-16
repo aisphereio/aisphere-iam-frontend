@@ -49,10 +49,11 @@ export function useIamAuthzRelationships(params?: {
   subjectType?: string;
   subjectId?: string;
   subjectRelation?: string;
-}) {
+}, enabled?: boolean) {
   return useQuery({
     queryKey: ['iam', 'authz', 'relationships', params],
     queryFn: () => iamAuthzAdminApi.listRelationships(params),
+    enabled: enabled !== false && Boolean(params),
   });
 }
 
