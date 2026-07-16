@@ -37,8 +37,8 @@ describe('iamDirectoryApi generated Group tracer', () => {
     expect(iAMGroupAdminServiceCreateGroup).toHaveBeenCalledWith('org/a', {
       group: {
         name: 'dev',
-        displayName: 'Developers',
-        parentId: 'parent',
+        display_name: 'Developers',
+        parent_id: 'parent',
       },
     });
   });
