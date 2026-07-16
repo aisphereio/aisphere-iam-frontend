@@ -7,7 +7,7 @@ import {
   UserMinus, UserPlus, CornerDownRight, Network, Layers,
   AlertTriangle, Bug, UserRound, Mail, Phone, Fingerprint,
   Tag, ExternalLink, MapPin,
-  Search, Lock,
+  Search, Lock, Shield,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +32,7 @@ import {
   useIamDirectoryGroups, useIamDirectoryOrganization,
   useIamExternalUsers, useIamRemoveUserFromGroup, useIamUpdateGroup,
 } from '@/hooks/use-iam';
-import type { IamGroup, IamPrincipal, IamUser } from '@/lib/api/types';
+import type { IamGroup, IamPrincipal, IamUser, Tab } from '@/lib/api/types';
 import { GroupTreePicker } from './group-tree-picker';
 import { GroupMultiPicker } from './group-multi-picker';
 import { UserPicker } from './user-picker';
@@ -55,6 +55,7 @@ import {
 } from './organization-workbench-model';
 import { OrganizationWorkbenchShell } from './organization-workbench-shell';
 import { OrganizationWorkspaceTabs } from './organization-workspace';
+import { GroupPermissionPanel } from '@/components/access-control/permission-insight/group-permission-panel';
 
 type OrganizationForm = {
   name: string;
@@ -333,7 +334,7 @@ function ChildGroupCard({
   );
 }
 
-export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: string }) {
+export function GroupsPage({ identityOrg: identityOrgProp, onTabChange }: { identityOrg?: string; onTabChange?: (tab: Tab) => void }) {
   const { data: me } = useMe();
   const [selection, setSelection] = useState<Selection>({ kind: 'root' });
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -976,6 +977,13 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                 <OrganizationWorkspaceTabs
                   memberCount={selectedGroupUsers.length}
                   childCount={descendantRows.length}
+                  permissions={(
+                    <GroupPermissionPanel
+                      identityOrg={zoneId}
+                      groupId={groupID(selection.group)}
+                      groupLabel={groupLabel(selection.group)}
+                    />
+                  )}
                   overview={(
                     <div className="space-y-3">
                       <div>
@@ -1201,6 +1209,21 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
                 <Button size="sm" variant="ghost" onClick={handleSelectRoot}>
                   <X className="mr-1 h-3.5 w-3.5" />
                   回到用户源根节点
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('tab', 'permission-insight');
+                    url.searchParams.set('subject_type', 'user');
+                    url.searchParams.set('subject_id', userID(selection.user));
+                    window.history.replaceState({}, '', url.toString());
+                    onTabChange?.('permission-insight');
+                  }}
+                >
+                  <Shield className="mr-1 h-3.5 w-3.5" />
+                  查看权限
                 </Button>
               </div>
             </CardContent>

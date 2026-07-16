@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Building2, Settings2, Users } from 'lucide-react';
+import { Building2, Settings2, Shield, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -9,12 +9,14 @@ export function OrganizationWorkspaceTabs({
   overview,
   members,
   settings,
+  permissions,
   memberCount,
   childCount,
 }: {
   overview: ReactNode;
   members: ReactNode;
   settings: ReactNode;
+  permissions?: ReactNode;
   memberCount: number;
   childCount: number;
 }) {
@@ -35,10 +37,19 @@ export function OrganizationWorkspaceTabs({
           <Settings2 className="h-3.5 w-3.5" />
           组织设置
         </TabsTrigger>
+        {permissions && (
+          <TabsTrigger value="permissions" className="min-w-24 rounded-lg px-3 text-xs">
+            <Shield className="h-3.5 w-3.5" />
+            权限
+          </TabsTrigger>
+        )}
       </TabsList>
       <TabsContent value="overview" className="mt-0">{overview}</TabsContent>
       <TabsContent value="members" className="mt-0">{members}</TabsContent>
       <TabsContent value="settings" className="mt-0">{settings}</TabsContent>
+      {permissions && (
+        <TabsContent value="permissions" className="mt-0">{permissions}</TabsContent>
+      )}
     </Tabs>
   );
 }

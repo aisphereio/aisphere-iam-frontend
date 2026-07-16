@@ -44,7 +44,7 @@ function saveIdentityOrg(org: string) {
   }
 }
 
-const validTabs: Tab[] = ['users', 'groups', 'projects', 'grants', 'roles', 'resources', 'permission-diagnosis', 'permissions-center', 'capabilities', 'resource-permissions', 'user-permissions', 'platform-governance'];
+const validTabs: Tab[] = ['users', 'groups', 'projects', 'grants', 'roles', 'resources', 'permission-diagnosis', 'permissions-center', 'capabilities', 'resource-permissions', 'user-permissions', 'platform-governance', 'permission-insight'];
 
 function getInitialTab(): Tab {
   if (typeof window === 'undefined') return 'resource-permissions';
