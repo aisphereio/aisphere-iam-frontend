@@ -42,10 +42,6 @@ function normalizeSourceType(raw: unknown): IamEntitlementSourceType | undefined
  * to camelCase (frontend TypeScript types).
  */
 function normalizeEntitlement(raw: Record<string, unknown>): IamEntitlement {
-  // Debug: log raw entitlement data to see actual field names
-  if (typeof window !== 'undefined') {
-    console.log('[DEBUG] raw entitlement:', JSON.stringify(raw));
-  }
   return {
     id: (raw.id || raw.Id || '') as string,
     subject: raw.subject as IamEntitlement['subject'] || raw.Subject as IamEntitlement['subject'],

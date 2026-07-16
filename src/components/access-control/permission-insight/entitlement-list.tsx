@@ -143,13 +143,17 @@ function EntitlementRow({
       </div>
 
       <CollapsibleContent>
-        {ent.permissions && ent.permissions.length > 0 && (
+        {ent.permissions && ent.permissions.length > 0 ? (
           <div className="flex flex-wrap gap-1 border-t px-3 py-2">
             {ent.permissions.map((perm) => (
               <Badge key={perm} variant="secondary" className="text-[10px]">
                 {perm}
               </Badge>
             ))}
+          </div>
+        ) : (
+          <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+            该角色未配置具体权限
           </div>
         )}
       </CollapsibleContent>
