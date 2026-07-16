@@ -60,8 +60,8 @@ export const iamDirectoryApi = {
   ): Promise<IamGroup> => iAMGroupAdminServiceCreateGroup(orgId, {
     group: {
       name: group.name,
+      displayName: group.displayName || group.name,
       ...(group.parentId !== undefined ? { parentId: group.parentId } : {}),
-      ...(group.displayName !== undefined ? { displayName: group.displayName } : {}),
       ...(group.type !== undefined ? { type: group.type } : {}),
     },
   }).then((g) => normalizeIamGroup(g as unknown as Record<string, unknown>)),

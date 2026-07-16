@@ -446,7 +446,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
     setSelection({ kind: 'group', group });
     setSelectedUserId('');
     setForm({
-      name: group.name || '',
+      name: group.name || group.id || '',
       displayName: group.displayName || '',
       type: group.type || 'Physical',
       parentId: group.parentId || '',
@@ -474,7 +474,12 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
       ?? (form.parentId.trim() || (selectedGroup ? groupID(selectedGroup) : undefined));
 
     if (!name) {
-      toast.error('组织名称不能为空');
+      toast.error('标识名称不能为空');
+      return;
+    }
+    // Validate machine-readable name: only lowercase letters, digits, hyphens, underscores.
+    if (!/^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$/.test(name)) {
+      toast.error('标识名称必须以小写字母开头，只能包含小写字母、数字、短横线和下划线');
       return;
     }
     // Soft pre-check: warn if a group with the same name or displayName
@@ -493,7 +498,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         orgId: zoneId,
         parentId: effectiveParentId,
         name,
-        displayName,
+        displayName: displayName || name,
         type,
       });
       toast.success(effectiveParentId ? '子组织已创建' : '顶级组织已创建');
@@ -517,6 +522,7 @@ export function GroupsPage({ identityOrg: identityOrgProp }: { identityOrg?: str
         orgId: zoneId,
         groupId: groupID(selectedGroup),
         parentId: newParentId,
+        name: form.name.trim() || undefined,
         displayName: form.displayName.trim() || undefined,
         type: form.type.trim() || selectedGroup.type || 'Physical',
       });
@@ -1315,10 +1321,10 @@ function OrganizationManagementCard({
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Lock className="h-3 w-3" />
-                  组织名称
+                  标识名称
                   <span className="text-[10px] text-muted-foreground/70">（创建后不可修改）</span>
                 </label>
-                <Input value={form.name} readOnly className="h-8 text-xs bg-muted/50 text-muted-foreground cursor-not-allowed" placeholder="platform" />
+                <Input value={selectedGroup.name || selectedGroup.id} readOnly className="h-8 text-xs bg-muted/50 text-muted-foreground cursor-not-allowed" placeholder="platform-team" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">显示名</label>
@@ -1410,7 +1416,10 @@ function CreateGroupDialog({
   const parentGroup = parentId ? groups.find((g) => groupID(g) === parentId) : null;
   const isTopLevel = !parentId;
   const trimmedName = name.trim();
-  const canSubmit = trimmedName.length > 0 && !createPending;
+  // Machine-readable name validation: only lowercase letters, digits, hyphens, underscores.
+  const GROUP_NAME_PATTERN = /^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$/;
+  const nameValid = trimmedName.length === 0 || GROUP_NAME_PATTERN.test(trimmedName);
+  const canSubmit = trimmedName.length > 0 && nameValid && !createPending;
 
   // Duplicate-name detection (informational only — backend auto-deduplicates).
   const trimmedLower = trimmedName.toLowerCase();
@@ -1449,24 +1458,30 @@ function CreateGroupDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* 组织名称 */}
+          {/* 标识名称 (machine-readable name) */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">组织名称 *</label>
+            <label className="text-xs font-medium text-muted-foreground">标识名称 *</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-9 text-sm"
-              placeholder="platform"
+              placeholder="platform-team"
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) handleSubmit(); }}
             />
             <p className="text-[10px] text-muted-foreground/70">
-              英文标识，支持字母、数字、连字符。中文等非 ASCII 名称将自动生成英文标识。
+              仅支持小写字母、数字、短横线和下划线，用于系统识别。创建后不可修改。
             </p>
-            {duplicate ? (
+            {!nameValid && trimmedName.length > 0 ? (
+              <p className="text-[10px] text-destructive flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                标识名称必须以小写字母开头，只能包含小写字母、数字、短横线和下划线。
+              </p>
+            ) : null}
+            {duplicate && nameValid ? (
               <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
-                该名称已存在，系统将自动生成唯一标识名（如 {trimmedName || 'name'}-2）
+                该名称已存在，系统将自动生成唯一标识名（如 {trimmedName}-2）
               </p>
             ) : null}
           </div>

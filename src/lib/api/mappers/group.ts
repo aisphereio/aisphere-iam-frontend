@@ -36,7 +36,11 @@ export function normalizeIamGroup(input: unknown): IamGroup {
   const id = stringValue(record, 'id', 'groupId', 'group_id', 'externalId', 'external_id', 'name') || '';
   const externalId = stringValue(record, 'externalId', 'external_id') || id || undefined;
   const orgId = stringValue(record, 'orgId', 'org_id', 'organization', 'owner');
-  const name = stringValue(record, 'name', 'groupName', 'group_name', 'displayName', 'display_name') || id;
+  // With the stable-ID model:
+  //   id          = stable ID (e.g. "grp_01AR...")
+  //   name        = machine-readable name (slug) — may be same as id if not persisted
+  //   displayName = user-visible display name (may contain Chinese)
+  const name = stringValue(record, 'name', 'groupName', 'group_name') || id;
   const displayName = stringValue(record, 'displayName', 'display_name', 'title') || name || undefined;
   const type = stringValue(record, 'type', 'groupType', 'group_type') || undefined;
   const path = stringValue(record, 'path', 'groupPath', 'group_path', 'fullPath', 'full_path') || undefined;
