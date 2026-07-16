@@ -5,10 +5,33 @@ import {
 } from '../generated/access-query-service/access-query-service';
 import type {
   IamEntitlement,
+  IamEntitlementSourceType,
   IamListResourceAccessReply,
   IamListSubjectEntitlementsReply,
   IamPreviewGrantReply,
 } from '../types';
+
+/**
+ * Proto enum number → string mapping for EntitlementSourceType.
+ * grpc-gateway serializes proto enums as numeric values by default.
+ */
+const SOURCE_TYPE_MAP: Record<number, IamEntitlementSourceType> = {
+  1: 'DIRECT_GRANT',
+  2: 'GROUP_GRANT',
+  3: 'PARENT_INHERITANCE',
+  4: 'ORG_INHERITANCE',
+  5: 'PLATFORM_INHERITANCE',
+};
+
+function normalizeSourceType(raw: unknown): IamEntitlementSourceType | undefined {
+  if (typeof raw === 'string' && raw in SOURCE_TYPE_MAP) {
+    return raw as IamEntitlementSourceType;
+  }
+  if (typeof raw === 'number' && raw in SOURCE_TYPE_MAP) {
+    return SOURCE_TYPE_MAP[raw];
+  }
+  return undefined;
+}
 
 /**
  * Normalize a single entitlement from snake_case (backend protobuf JSON)
@@ -21,7 +44,7 @@ function normalizeEntitlement(raw: Record<string, unknown>): IamEntitlement {
     resource: raw.resource as IamEntitlement['resource'] || raw.Resource as IamEntitlement['resource'],
     roleKey: (raw.roleKey || raw.role_key || raw.RoleKey || '') as string | undefined,
     permissions: (raw.permissions || raw.Permissions || []) as string[] | undefined,
-    sourceType: (raw.sourceType || raw.source_type || raw.SourceType) as IamEntitlement['sourceType'],
+    sourceType: normalizeSourceType(raw.sourceType ?? raw.source_type ?? raw.SourceType),
     sourceSubject: (raw.sourceSubject || raw.source_subject || raw.SourceSubject) as IamEntitlement['sourceSubject'],
     sourceResource: (raw.sourceResource || raw.source_resource || raw.SourceResource) as IamEntitlement['sourceResource'],
     grantId: (raw.grantId || raw.grant_id || raw.GrantId || '') as string | undefined,
