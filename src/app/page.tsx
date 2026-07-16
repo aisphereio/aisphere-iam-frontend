@@ -12,6 +12,8 @@ import { RoleLibrary } from '@/components/access-control/role-library';
 import { IamPage } from '@/components/pages/iam-page';
 import { ExternalUsersPage } from '@/components/pages/users-page';
 import { GroupsPage } from '@/components/pages/groups-page';
+import { IamApiError } from '@/lib/api/iam-fetch';
+import { toast } from 'sonner';
 import type { Tab } from '@/lib/api/types';
 
 const queryClient = new QueryClient({
@@ -19,6 +21,28 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+    },
+    mutations: {
+      onError(error) {
+        if (error instanceof IamApiError) {
+          if (error.isPermissionDenied) {
+            const detail = error.reason ? `: ${error.reason}` : '';
+            toast.error(`权限不足${detail}`, {
+              description: error.decisionId ? `决策 ID: ${error.decisionId}` : undefined,
+            });
+          } else if (error.isValidationError) {
+            toast.error('请求参数错误', {
+              description: error.message,
+            });
+          } else if (error.isServerError) {
+            toast.error('服务器错误', {
+              description: error.requestId ? `请求 ID: ${error.requestId}` : error.message,
+            });
+          } else {
+            toast.error(error.message);
+          }
+        }
+      },
     },
   },
 });

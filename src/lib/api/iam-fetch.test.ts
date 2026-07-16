@@ -30,7 +30,12 @@ describe('iamFetch', () => {
   it('reports a manual redirect as an authentication challenge', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 302 })));
 
-    await expect(iamFetch({ url: '/v1/iam/me' })).rejects.toThrow('Authentication required');
+    const error = await iamFetch({ url: '/v1/iam/me' }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(IamApiError);
+    expect(error).toMatchObject({
+      status: 302,
+      code: 'AUTHENTICATION_REQUIRED',
+    });
   });
 
   it('throws the Kernel error envelope with correlation metadata', async () => {
