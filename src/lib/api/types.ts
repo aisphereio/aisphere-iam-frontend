@@ -282,18 +282,6 @@ export interface IamAuthzEffectivePermissionsReply {
   permissions: Record<string, { allowed: boolean; effect?: string; reason?: string }>;
 }
 
-export type LocalUser = {
-  username: string;
-  subjectId?: string;
-  subjectType?: string;
-  displayName?: string;
-  email?: string;
-  organization?: string;
-  roles?: string[];
-  permissions?: string[];
-  disabled?: boolean;
-};
-
 export type Tab = 'users' | 'groups' | 'projects' | 'grants' | 'resources' | 'permissions' | 'capabilities' | 'permissions-center' | 'roles' | 'permission-diagnosis' | 'resource-permissions' | 'user-permissions' | 'platform-governance';
 
 // ─── AccessQuery Types ──────────────────────────────────────────────────
