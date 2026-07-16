@@ -57,14 +57,20 @@ export const iamDirectoryApi = {
   createGroup: (
     orgId: string,
     group: Required<Pick<V1Group, 'name'>> & Pick<V1Group, 'parentId' | 'displayName' | 'type'>,
-  ): Promise<IamGroup> => iAMGroupAdminServiceCreateGroup(orgId, {
-    group: {
+  ): Promise<IamGroup> => {
+    const groupBody: Record<string, unknown> = {
       name: group.name,
-      displayName: group.displayName || group.name,
-      ...(group.parentId !== undefined ? { parentId: group.parentId } : {}),
+      // The backend protobuf JSON encoder uses snake_case field names
+      // (json:"display_name,omitempty", json:"parent_id,omitempty"),
+      // so we must send display_name and parent_id instead of camelCase.
+      display_name: group.displayName || group.name,
       ...(group.type !== undefined ? { type: group.type } : {}),
-    },
-  }).then((g) => normalizeIamGroup(g as unknown as Record<string, unknown>)),
+    };
+    if (group.parentId !== undefined) {
+      groupBody.parent_id = group.parentId;
+    }
+    return iAMGroupAdminServiceCreateGroup(orgId, { group: groupBody as V1Group }).then((g) => normalizeIamGroup(g as unknown as Record<string, unknown>));
+  },
 
   updateGroup: (
     orgId: string,
@@ -74,7 +80,7 @@ export const iamDirectoryApi = {
     const { parentId } = group;
     const groupBody: Record<string, unknown> = {
       ...(group.name !== undefined ? { name: group.name } : {}),
-      ...(group.displayName !== undefined ? { displayName: group.displayName } : {}),
+      ...(group.displayName !== undefined ? { display_name: group.displayName } : {}),
       ...(group.type !== undefined ? { type: group.type } : {}),
     };
     // parentId must be sent as snake_case "parent_id" inside the group object
