@@ -21,7 +21,7 @@ export const iamProjectApi = {
     projectServiceGetProject(orgId, projectId) as Promise<IamProject>,
 
   listProjects: (orgId: string): Promise<{ projects: IamProject[] }> =>
-    projectServiceListProjects(orgId) as Promise<{ projects: IamProject[] }>,
+    projectServiceListProjects(orgId, { status: 'ACTIVE' }) as Promise<{ projects: IamProject[] }>,
 
   updateProject: (orgId: string, projectId: string, project: Partial<IamProject>): Promise<IamProject> =>
     projectServiceUpdateProject(orgId, projectId, project as never) as Promise<IamProject>,
