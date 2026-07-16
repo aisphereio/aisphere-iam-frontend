@@ -43,15 +43,14 @@ describe('iamDirectoryApi generated Group tracer', () => {
     });
   });
 
-  it('uses PATCH and top-level parent presence through the generated update operation', async () => {
+  it('sends parent_id as snake_case inside group object for protobuf JSON compatibility', async () => {
     await iamDirectoryApi.updateGroup('org/a', 'group/1', {
       name: 'dev',
       parentId: '',
     });
 
     expect(iAMGroupAdminServiceUpdateGroup).toHaveBeenCalledWith('org/a', 'group/1', {
-      group: { name: 'dev' },
-      parentId: '',
+      group: { name: 'dev', parent_id: '' },
     });
   });
 
