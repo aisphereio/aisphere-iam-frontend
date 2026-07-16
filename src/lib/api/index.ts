@@ -24,6 +24,14 @@ import type {
   IamPreviewGrantReply,
   LocalUser,
 } from './types';
+import {
+  iAMGroupAdminServiceAssignUserToGroup,
+  iAMGroupAdminServiceCreateGroup,
+  iAMGroupAdminServiceDeleteGroup,
+  iAMGroupAdminServiceRemoveUserFromGroup,
+  iAMGroupAdminServiceUpdateGroup,
+} from './generated/iamgroup-admin-service/iamgroup-admin-service';
+import type { V1Group } from './generated/model';
 
 // ─── IAM Service API (aisphere-iam /v1/iam/*) ──────────────────────────
 
@@ -336,8 +344,6 @@ export const iamAuthApi = {
 };
 
 /** IAM Directory Service */
-type IamGroupWrite = { parentId?: string; name?: string; displayName?: string; type?: string };
-
 export const iamDirectoryApi = {
   getUser: (orgId: string, userId: string) =>
     iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/users/${encodeURIComponent(userId)}`).then(normalizeIamUser),
@@ -371,35 +377,41 @@ export const iamDirectoryApi = {
       .then(normalizeIamGroupsReply);
   },
 
-  createGroup: (orgId: string, group: IamGroupWrite & { name: string }) =>
-    iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`, {
-      method: 'POST',
-      body: JSON.stringify({ group }),
-    }).then(normalizeIamGroup),
+  createGroup: (
+    orgId: string,
+    group: Required<Pick<V1Group, 'name'>> & Pick<V1Group, 'parentId' | 'displayName' | 'type'>,
+  ) => iAMGroupAdminServiceCreateGroup(orgId, {
+    group: {
+      name: group.name,
+      ...(group.parentId !== undefined ? { parentId: group.parentId } : {}),
+      ...(group.displayName !== undefined ? { displayName: group.displayName } : {}),
+      ...(group.type !== undefined ? { type: group.type } : {}),
+    },
+  }).then(normalizeIamGroup),
 
-  updateGroup: (orgId: string, groupId: string, group: IamGroupWrite) =>
-    iamRequest<unknown>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ group }),
-    }).then(normalizeIamGroup),
+  updateGroup: (
+    orgId: string,
+    groupId: string,
+    group: Pick<V1Group, 'parentId' | 'name' | 'displayName' | 'type'>,
+  ) => {
+    const { parentId } = group;
+    const groupBody = {
+      ...(group.name !== undefined ? { name: group.name } : {}),
+      ...(group.displayName !== undefined ? { displayName: group.displayName } : {}),
+      ...(group.type !== undefined ? { type: group.type } : {}),
+    };
+    const body = parentId === undefined ? { group: groupBody } : { group: groupBody, parentId };
+    return iAMGroupAdminServiceUpdateGroup(orgId, groupId, body).then(normalizeIamGroup);
+  },
 
   deleteGroup: (orgId: string, groupId: string, recursive = false) =>
-    iamRequest<{ success: boolean }>(
-      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}${recursive ? '?recursive=true' : ''}`,
-      { method: 'DELETE' },
-    ),
+    iAMGroupAdminServiceDeleteGroup(orgId, groupId, recursive ? { recursive: true } : undefined),
 
   assignUserToGroup: (orgId: string, groupId: string, userId: string) =>
-    iamRequest<Record<string, never>>(
-      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
-      { method: 'POST' },
-    ),
+    iAMGroupAdminServiceAssignUserToGroup(orgId, groupId, userId),
 
   removeUserFromGroup: (orgId: string, groupId: string, userId: string) =>
-    iamRequest<Record<string, never>>(
-      `/v1/iam/orgs/${encodeURIComponent(orgId)}/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
-      { method: 'DELETE' },
-    ),
+    iAMGroupAdminServiceRemoveUserFromGroup(orgId, groupId, userId),
 };
 
 /** IAM Permission Service */
