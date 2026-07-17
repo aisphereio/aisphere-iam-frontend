@@ -45,7 +45,7 @@ export function normalizeIamGroup(input: unknown): IamGroup {
   const type = stringValue(record, 'type', 'groupType', 'group_type') || undefined;
   const path = stringValue(record, 'path', 'groupPath', 'group_path', 'fullPath', 'full_path') || undefined;
   // parentId may be present under multiple keys depending on JSON encoder
-  let parentId = stringValue(record, 'parentId', 'parent_id', 'parent', 'parentNode', 'parent_node', 'parentId');
+  const parentId = stringValue(record, 'parentId', 'parent_id', 'parent', 'parentNode', 'parent_node', 'parentId');
   // Derive parentId from path if missing. Casdoor typically encodes group
   // hierarchy as a slash-separated path like "/org/parent/child". We strip
   // the leading org segment and use the last segment as the child name and

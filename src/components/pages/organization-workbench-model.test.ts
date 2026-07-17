@@ -6,6 +6,8 @@ import {
   buildGroupUsersMap,
   buildOrganizationPath,
   buildUserGroupsMap,
+  resolveGroupReferences,
+  resolveUserGroupReferences,
   searchDirectory,
   summarizeOrganization,
 } from './organization-workbench-model';
@@ -93,6 +95,17 @@ describe('buildUserGroupsMap', () => {
     expect(map.get('bob')?.map((g) => g.id)).toEqual(['platform']);
   });
 
+  it('resolves a legacy membership slug through the group external ID', () => {
+    const groups: IamGroup[] = [
+      { id: 'grp_stable', externalId: 'engineering', name: 'grp_stable', displayName: '工程中心' },
+    ];
+    const users: IamUser[] = [
+      { id: 'alice', username: 'alice', groups: ['engineering'] },
+    ];
+    const map = buildUserGroupsMap(groups, aliasMap(users), users, buildGroupMap(groups));
+    expect(map.get('alice')?.map((g) => g.id)).toEqual(['grp_stable']);
+  });
+
   it('merges both directions without duplicates for a multi-group user', () => {
     const groups: IamGroup[] = [
       { id: 'engineering', name: 'engineering', users: ['alice'] },
@@ -115,5 +128,34 @@ describe('buildUserGroupsMap', () => {
     ];
     const map = buildUserGroupsMap(groups, aliasMap(users), users, buildGroupMap(groups));
     expect(map.get('carol')).toBeUndefined();
+  });
+});
+
+describe('resolveGroupReferences', () => {
+  it('returns display labels for known groups and preserves stale references explicitly', () => {
+    const groups: IamGroup[] = [
+      { id: 'grp_stable', externalId: 'engineering', name: 'grp_stable', displayName: '工程中心' },
+    ];
+
+    expect(resolveGroupReferences(['engineering', 'deleted-team'], buildGroupMap(groups))).toEqual([
+      { reference: 'engineering', label: '工程中心', group: groups[0], resolved: true },
+      { reference: 'deleted-team', label: 'deleted-team', resolved: false },
+    ]);
+  });
+
+  it('shows the actual organization from group members when the user alias is stale', () => {
+    const groups: IamGroup[] = [
+      { id: 'grp_stable', name: 'grp_stable', displayName: 'Engineering', users: ['alice'] },
+    ];
+    const users: IamUser[] = [
+      { id: 'alice', username: 'alice', groups: ['legacy-engineering'] },
+    ];
+    const groupMap = buildGroupMap(groups);
+    const userGroupsMap = buildUserGroupsMap(groups, new Map([['alice', users[0]]]), users, groupMap);
+
+    expect(resolveUserGroupReferences(users[0], groupMap, userGroupsMap)).toEqual([
+      { reference: 'grp_stable', label: 'Engineering', group: groups[0], resolved: true },
+      { reference: 'legacy-engineering', label: 'legacy-engineering', resolved: false },
+    ]);
   });
 });

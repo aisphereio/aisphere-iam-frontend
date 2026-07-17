@@ -16,6 +16,8 @@ export default defineConfig([
   },
   globalIgnores([
     '.next/**',
+    '.worktrees/**',
+    'aisphere-iam-front-delivery-*/**',
     'out/**',
     'build/**',
     'next-env.d.ts',

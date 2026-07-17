@@ -16,8 +16,14 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { useMe } from '@/hooks/use-auth';
-import { useIamExternalUsers } from '@/hooks/use-iam';
+import { useIamDirectoryGroups, useIamExternalUsers } from '@/hooks/use-iam';
 import type { IamPrincipal, IamUser } from '@/lib/api/types';
+import {
+  buildGroupMap,
+  buildUserGroupsMap,
+  resolveUserGroupReferences,
+  userId,
+} from './organization-workbench-model';
 
 function defaultOrgFromPrincipal(principal?: IamPrincipal): string {
   const candidates = [
@@ -48,7 +54,17 @@ function userSearchText(user: IamUser): string {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
-function UserDetailDialog({ user, open, onOpenChange }: { user: IamUser | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+function UserDetailDialog({
+  user,
+  groupReferences,
+  open,
+  onOpenChange,
+}: {
+  user: IamUser | null;
+  groupReferences: ReturnType<typeof resolveUserGroupReferences>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   if (!user) return null;
 
   const detailItems = [
@@ -120,15 +136,22 @@ function UserDetailDialog({ user, open, onOpenChange }: { user: IamUser | null; 
           ) : null}
 
           {/* 组 */}
-          {user.groups && user.groups.length > 0 ? (
+          {groupReferences.length > 0 ? (
             <div className="space-y-1">
               <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <FolderTree className="h-3 w-3" />
                 所属组
               </div>
               <div className="flex flex-wrap gap-1">
-                {user.groups.map((group) => (
-                  <Badge key={group} variant="outline" className="text-[10px]">{group}</Badge>
+                {groupReferences.map((group) => (
+                  <Badge
+                    key={group.reference}
+                    variant={group.resolved ? 'outline' : 'destructive'}
+                    className="text-[10px]"
+                    title={group.resolved ? group.reference : `组织目录中不存在该引用：${group.reference}`}
+                  >
+                    {group.resolved ? group.label : `失效：${group.label}`}
+                  </Badge>
                 ))}
               </div>
             </div>
@@ -148,8 +171,24 @@ export function ExternalUsersPage({ identityOrg: identityOrgProp }: { identityOr
   const { data, isLoading, isFetching, error, refetch } = useIamExternalUsers(effectiveOrgId, {
     pageSize: 200,
   });
+  const { data: groupsData } = useIamDirectoryGroups(effectiveOrgId);
 
-  const users = data?.users || [];
+  const users = useMemo(() => data?.users || [], [data?.users]);
+  const groups = useMemo(() => groupsData?.groups || [], [groupsData?.groups]);
+  const groupMap = useMemo(() => buildGroupMap(groups), [groups]);
+  const userById = useMemo(() => {
+    const map = new Map<string, IamUser>();
+    for (const user of users) {
+      for (const alias of [userId(user), user.externalId, user.username]) {
+        if (alias) map.set(alias, user);
+      }
+    }
+    return map;
+  }, [users]);
+  const userGroupsMap = useMemo(
+    () => buildUserGroupsMap(groups, userById, users, groupMap),
+    [groupMap, groups, userById, users],
+  );
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return users;
@@ -224,12 +263,14 @@ export function ExternalUsersPage({ identityOrg: identityOrgProp }: { identityOr
                     没有找到用户
                   </TableCell>
                 </TableRow>
-              ) : filteredUsers.map((user) => (
-                <TableRow
-                  key={user.id || user.externalId || user.username}
-                  className="cursor-pointer"
-                  onClick={() => setSelectedUser(user)}
-                >
+              ) : filteredUsers.map((user) => {
+                const groupReferences = resolveUserGroupReferences(user, groupMap, userGroupsMap);
+                return (
+                  <TableRow
+                    key={user.id || user.externalId || user.username}
+                    className="cursor-pointer"
+                    onClick={() => setSelectedUser(user)}
+                  >
                   <TableCell className="text-xs font-medium">{user.username || '-'}</TableCell>
                   <TableCell className="text-xs">{user.displayName || '-'}</TableCell>
                   <TableCell className="text-xs">{user.email || '-'}</TableCell>
@@ -239,8 +280,15 @@ export function ExternalUsersPage({ identityOrg: identityOrgProp }: { identityOr
                   <TableCell className="font-mono text-xs">{user.orgId || effectiveOrgId}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {(user.groups || []).length === 0 ? <span className="text-xs text-muted-foreground">-</span> : user.groups?.map((group) => (
-                        <Badge key={group} variant="outline" className="text-[10px]">{group}</Badge>
+                      {groupReferences.length === 0 ? <span className="text-xs text-muted-foreground">-</span> : groupReferences.map((group) => (
+                        <Badge
+                          key={group.reference}
+                          variant={group.resolved ? 'outline' : 'destructive'}
+                          className="text-[10px]"
+                          title={group.resolved ? group.reference : `组织目录中不存在该引用：${group.reference}`}
+                        >
+                          {group.resolved ? group.label : `失效：${group.label}`}
+                        </Badge>
                       ))}
                     </div>
                   </TableCell>
@@ -251,14 +299,20 @@ export function ExternalUsersPage({ identityOrg: identityOrgProp }: { identityOr
                       <Badge className="bg-green-500 text-[10px]">启用</Badge>
                     )}
                   </TableCell>
-                </TableRow>
-              ))}
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <UserDetailDialog user={selectedUser} open={!!selectedUser} onOpenChange={(open) => { if (!open) setSelectedUser(null); }} />
+      <UserDetailDialog
+        user={selectedUser}
+        groupReferences={selectedUser ? resolveUserGroupReferences(selectedUser, groupMap, userGroupsMap) : []}
+        open={!!selectedUser}
+        onOpenChange={(open) => { if (!open) setSelectedUser(null); }}
+      />
     </div>
   );
 }

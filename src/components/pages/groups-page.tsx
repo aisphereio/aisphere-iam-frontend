@@ -48,6 +48,7 @@ import {
   groupId as groupID,
   groupLabel,
   isTopLevelOrganization,
+  resolveGroupReferences,
   searchDirectory,
   userId as userID,
   userInitial,
@@ -676,12 +677,12 @@ export function GroupsPage({ identityOrg: identityOrgProp, onTabChange }: { iden
   // Uses the alias-aware, bidirectional userGroupsMap so memberships resolve
   // correctly even when group.users holds Casdoor usernames instead of
   // canonical IDs, or when only user.groups was populated by the backend.
-  const userGroupMemberships = useMemo(() => {
-    if (selection.kind !== 'user') return [];
-    const uid = userID(selection.user);
-    if (!uid) return [];
-    return userGroupsMap.get(uid) || [];
-  }, [selection, userGroupsMap]);
+  const selectedUser = selection.kind === 'user' ? selection.user : null;
+  const selectedDetailUserId = selectedUser ? userID(selectedUser) : '';
+  const userGroupMemberships = selectedDetailUserId ? userGroupsMap.get(selectedDetailUserId) || [] : [];
+  const unresolvedUserGroupReferences = selectedUser
+    ? resolveGroupReferences(selectedUser.groups, groupMap).filter((reference) => !reference.resolved)
+    : [];
 
   const contextGroup = selection.kind === 'group'
     ? selection.group
@@ -1143,7 +1144,7 @@ export function GroupsPage({ identityOrg: identityOrgProp, onTabChange }: { iden
                   </Button>
                 </div>
                 <div className="space-y-1.5">
-                  {userGroupMemberships.length === 0 ? (
+                  {userGroupMemberships.length === 0 && unresolvedUserGroupReferences.length === 0 ? (
                     <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
                       该成员当前未归属任何组织。点击上方"管理组织"加入组织。
                     </div>
@@ -1174,6 +1175,14 @@ export function GroupsPage({ identityOrg: identityOrgProp, onTabChange }: { iden
                       </div>
                     );
                   })}
+                  {unresolvedUserGroupReferences.map((reference) => (
+                    <div
+                      key={reference.reference}
+                      className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+                    >
+                      组织引用 <code className="font-mono">{reference.reference}</code> 已失效：人员数据中仍保留该值，但当前组织目录不存在对应组织。
+                    </div>
+                  ))}
                 </div>
               </div>
 
