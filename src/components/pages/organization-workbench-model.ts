@@ -53,11 +53,38 @@ export function buildGroupMap(groups: IamGroup[]): Map<string, IamGroup> {
   for (const group of groups) {
     const id = groupId(group);
     if (id) map.set(id, group);
-    // Also index by name so lookups by Casdoor parentId (which is the parent's
-    // name, not its UUID id) resolve correctly.
-    if (group.name && group.name !== id) map.set(group.name, group);
+    // Index every contract-level alias. Stable-ID groups use id/name for the
+    // Casdoor key while externalId carries the IAM machine-readable slug.
+    for (const alias of [group.name, group.externalId]) {
+      if (alias && alias !== id) map.set(alias, group);
+    }
   }
   return map;
+}
+
+export type ResolvedGroupReference = {
+  reference: string;
+  label: string;
+  group?: IamGroup;
+  resolved: boolean;
+};
+
+export function resolveGroupReferences(
+  references: string[] | undefined,
+  groupMap: Map<string, IamGroup>,
+): ResolvedGroupReference[] {
+  const seen = new Set<string>();
+  const resolved: ResolvedGroupReference[] = [];
+  for (const rawReference of references || []) {
+    const reference = rawReference.trim();
+    if (!reference || seen.has(reference)) continue;
+    seen.add(reference);
+    const group = groupMap.get(reference);
+    resolved.push(group
+      ? { reference, label: groupLabel(group), group, resolved: true }
+      : { reference, label: reference, resolved: false });
+  }
+  return resolved;
 }
 
 export function buildOrganizationPath(
@@ -184,6 +211,28 @@ export function buildUserGroupsMap(
     }
   }
   return map;
+}
+
+export function resolveUserGroupReferences(
+  user: IamUser,
+  groupMap: Map<string, IamGroup>,
+  userGroupsMap: Map<string, IamGroup[]>,
+): ResolvedGroupReference[] {
+  const references = resolveGroupReferences(user.groups, groupMap);
+  const seenGroupIds = new Set(
+    references
+      .filter((reference) => reference.group)
+      .map((reference) => groupId(reference.group)),
+  );
+
+  const inferred = userGroupsMap.get(userId(user)) || [];
+  for (const group of inferred) {
+    const id = groupId(group);
+    if (!id || seenGroupIds.has(id)) continue;
+    references.unshift({ reference: id, label: groupLabel(group), group, resolved: true });
+    seenGroupIds.add(id);
+  }
+  return references;
 }
 
 export function summarizeOrganization(

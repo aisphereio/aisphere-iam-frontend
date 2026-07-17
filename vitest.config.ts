@@ -12,6 +12,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
     css: false,
-    exclude: ['e2e/**', 'node_modules/**'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['e2e/**', '**/node_modules/**', '.worktrees/**'],
   },
 });
