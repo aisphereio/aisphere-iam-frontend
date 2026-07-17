@@ -39,25 +39,24 @@ import {
   useIamGrantAccess,
   useIamRevokeAccess,
 } from '@/hooks/use-iam';
-import { useMe } from '@/hooks/use-auth';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { ExternalUsersPage } from './users-page';
-import type { IamPrincipal, Tab } from '@/lib/api/types';
+import type { Tab } from '@/lib/api/types';
 
 // ─── Main IAM Page ─────────────────────────────────────────────────────
 // Content is driven by the sidebar navigation — no horizontal tab bar.
 
-export function IamPage({ tab }: { tab: Tab }) {
+export function IamPage({ tab, identityOrg }: { tab: Tab; identityOrg: string }) {
   switch (tab) {
     case 'users':
       return <ExternalUsersPage />;
     case 'projects':
-      return <ProjectsTab />;
+      return <ProjectsTab identityOrg={identityOrg} />;
     case 'grants':
-      return <GrantsTab />;
+      return <GrantsTab identityOrg={identityOrg} />;
     case 'resources':
-      return <ResourcesTab />;
+      return <ResourcesTab identityOrg={identityOrg} />;
     default:
       return <ExternalUsersPage />;
   }
@@ -65,12 +64,11 @@ export function IamPage({ tab }: { tab: Tab }) {
 
 // ─── Projects Tab ──────────────────────────────────────────────────────
 
-function ProjectsTab() {
+function ProjectsTab({ identityOrg }: { identityOrg: string }) {
   const t = useT();
-  const { data: me } = useMe();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ slug: '', displayName: '', description: '' });
-  const orgId = me?.orgId || '';
+  const orgId = identityOrg;
 
   const { data, isLoading, refetch } = useIamProjects(orgId);
   const createMutation = useIamCreateProject();
@@ -168,10 +166,9 @@ function ProjectsTab() {
 
 // ─── Grants & Roles Tab ────────────────────────────────────────────────
 
-function GrantsTab() {
+function GrantsTab({ identityOrg }: { identityOrg: string }) {
   const t = useT();
-  const { data: me } = useMe();
-  const orgId = me?.orgId || '';
+  const orgId = identityOrg;
   const [showGrant, setShowGrant] = useState(false);
   const [grantForm, setGrantForm] = useState({
     resourceType: '', resourceId: '',
@@ -383,10 +380,9 @@ function GrantsTab() {
 
 // ─── Resources Tab ─────────────────────────────────────────────────────
 
-function ResourcesTab() {
+function ResourcesTab({ identityOrg }: { identityOrg: string }) {
   const t = useT();
-  const { data: me } = useMe();
-  const orgId = me?.orgId || '';
+  const orgId = identityOrg;
   const [filterType, setFilterType] = useState('');
 
   const { data: typesData, isLoading: typesLoading } = useIamResourceTypes();
