@@ -59,7 +59,7 @@ function PageRouter({ tab, identityOrg, onTabChange }: { tab: Tab; identityOrg: 
   if (tab === 'resource-permissions') return <ResourcePermissions identityOrg={identityOrg} onNavigate={(t) => onTabChange(t as Tab)} />;
   if (tab === 'user-permissions') return <UserPermissions identityOrg={identityOrg} />;
   if (tab === 'permission-insight') return <PermissionInsightPage identityOrg={identityOrg} />;
-  return <IamPage tab={tab} />;
+  return <IamPage tab={tab} identityOrg={identityOrg} />;
 }
 
 export default function IamConsole() {
